@@ -1,0 +1,18 @@
+# Git 관련 함수들
+function gaa { git add . }
+function gc([string]$message) { git commit -m $message }
+function gp { git push }
+
+# Git 상태 확인
+function gs { git status }
+
+# Git 한번에 처리하는 함수
+function gacp([string]$message) {
+    git add .
+    if ($?) {
+        git commit -m $message
+        if ($?) {
+            git push
+        }
+    }
+} 
