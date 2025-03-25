@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import FormData from 'form-data';
+
+interface ContactFormData {
+  name: string;
+  email: string;
+  message: string;
+}
 
 export async function POST(req: Request) {
   try {
-    const data = await req.json();
+    const data = await req.json() as ContactFormData;
     console.log('받은 데이터:', data);
 
     // 환경 변수 로깅
@@ -59,17 +65,17 @@ export async function POST(req: Request) {
       throw new Error(`이메일 전송 실패 - 상태 코드: ${hiworksResponse.status}, 응답: ${JSON.stringify(hiworksResponse.data)}`);
     }
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('에러 상세 정보:', {
-      message: error.message,
-      response: error.response?.data,
-      config: error.config,
+      message: (error as Error).message,
+      response: (error as AxiosError).response?.data,
+      config: (error as AxiosError).config,
     });
     
     return NextResponse.json(
       { 
         success: false,
-        error: error.response?.data?.message || error.message || '메시지 전송 중 오류가 발생했습니다.'
+        error: error instanceof Error ? error.message : '메시지 전송 중 오류가 발생했습니다.'
       },
       { status: 500 }
     );
