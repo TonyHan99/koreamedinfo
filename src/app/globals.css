@@ -35,3 +35,18 @@ body {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1s ease-out forwards;
+}
