@@ -1,0 +1,6 @@
+{
+  "crons": [{
+    "path": "/api/cron/send-news?key=newsletter-cron-secret-key-123",
+    "schedule": "0 9 * * *"
+  }]
+} 
