@@ -9,7 +9,7 @@ export default function Home() {
       <section className="relative min-h-[800px] flex items-center justify-center text-white">
         <div className="absolute inset-0">
           <Image
-            src="https://camoinassociates.com/wp-content/uploads/2024/02/Medical-Equipment.jpg"
+            src="https://images.unsplash.com/photo-1579154204404-7b40108bf5b6?auto=format&fit=crop"
             alt="의료기기 배경"
             fill
             style={{ objectFit: 'cover', objectPosition: 'center' }}
@@ -80,7 +80,7 @@ export default function Home() {
       <section className="py-24 bg-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <Image
-            src="https://images.unsplash.com/photo-1579154204404-7b40108bf5b6"
+            src="https://images.unsplash.com/photo-1579154204404-7b40108bf5b6?auto=format&fit=crop"
             alt="의료기기 패턴"
             fill
             style={{ objectFit: 'cover' }}
@@ -97,7 +97,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://www.microsoft.com/en-us/research/wp-content/uploads/2018/08/01_MSR_SIGCOMM_Data_Network_1400x788-1024x576.png"
+                src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop"
                 alt="시장 조사 및 분석"
                 width={400}
                 height={300}
@@ -125,7 +125,7 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://www.imd.org/ibyimd/wp-content/uploads/2021/06/henderson-inclusive-strategy.jpg"
+                src="https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop"
                 alt="현지 파트너십"
                 width={400}
                 height={300}
@@ -153,7 +153,7 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://www.microsoft.com/en-us/research/wp-content/uploads/2018/08/01_MSR_SIGCOMM_Data_Network_1400x788-1024x576.png"
+                src="https://images.unsplash.com/photo-1576670159805-381a0aa9c331?auto=format&fit=crop"
                 alt="판매 전략"
                 width={400}
                 height={300}
