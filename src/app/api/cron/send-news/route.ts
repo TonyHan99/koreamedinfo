@@ -69,8 +69,8 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getNewsForKeyword(keyword: string) {
   try {
-    // API 호출 전 2초 대기
-    await delay(2000);
+    // API 호출 전 대기 시간 감소
+    await delay(500);
 
     const response = await axios.get(
       'https://openapi.naver.com/v1/search/news.json',
@@ -98,8 +98,8 @@ async function getNewsForKeyword(keyword: string) {
     return recentNews;
   } catch (error: any) {
     if (error.response?.status === 429) {
-      console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. 10초 후 재시도...`);
-      await delay(10000);
+      console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. 2초 후 재시도...`);
+      await delay(2000);
       return getNewsForKeyword(keyword);
     }
     
@@ -107,8 +107,8 @@ async function getNewsForKeyword(keyword: string) {
     console.error(`키워드 "${keyword}" 뉴스 가져오기 실패:`, errorMessage);
     
     if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
-      console.log(`네트워크 오류 발생. 5초 후 재시도...`);
-      await delay(5000);
+      console.log(`네트워크 오류 발생. 2초 후 재시도...`);
+      await delay(2000);
       return getNewsForKeyword(keyword);
     }
     
@@ -121,12 +121,14 @@ async function getAllNewsArticles() {
   const seenUrls = new Set();
   const processedArticles: any[] = [];
 
-  for (const [category, keywords] of Object.entries(SEARCH_KEYWORDS)) {
+  // 병렬로 모든 키워드에 대한 뉴스를 가져옴
+  const categoryPromises = Object.entries(SEARCH_KEYWORDS).map(async ([category, keywords]) => {
+    const keywordPromises = keywords.map(keyword => getNewsForKeyword(keyword));
+    const keywordResults = await Promise.all(keywordPromises);
+    
     const categoryArticles: any[] = [];
     
-    for (const keyword of keywords) {
-      const articles = await getNewsForKeyword(keyword);
-      
+    for (const articles of keywordResults) {
       for (const article of articles) {
         if (seenUrls.has(article.link)) {
           continue;
@@ -157,14 +159,16 @@ async function getAllNewsArticles() {
 
     if (categoryArticles.length > 0) {
       categoryArticles.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
-      allArticles.push({
+      return {
         category,
         articles: categoryArticles
-      });
+      };
     }
-  }
+    return null;
+  });
 
-  return allArticles;
+  const results = await Promise.all(categoryPromises);
+  return results.filter(result => result !== null);
 }
 
 async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
