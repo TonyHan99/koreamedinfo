@@ -1,6 +1,10 @@
 {
   "crons": [{
     "path": "/api/cron/send-news?key=newsletter-cron-secret-key-123",
-    "schedule": "0 9 * * *"
-  }]
+    "schedule": "0 0 * * *"
+  }],
+  "buildCommand": "prisma generate && next build",
+  "env": {
+    "PRISMA_GENERATE_DATAPROXY": "true"
+  }
 } 

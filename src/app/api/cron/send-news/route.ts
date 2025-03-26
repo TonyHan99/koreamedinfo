@@ -1,23 +1,15 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { PrismaClient } from '@prisma/client';
-import { sendTestEmail } from '@/utils/hiworks/email';
 import axios from 'axios';
 import { sendEmail } from '@/utils/hiworks/email';
+
+export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
 
 // 네이버 API 설정
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
-
-// API 인증 검사
-function isAuthorized(request: Request): boolean {
-  const headersList = headers();
-  const authHeader = headersList.get('authorization');
-  const apiKey = authHeader?.split(' ')[1];
-  return apiKey === process.env.API_SECRET_KEY;
-}
 
 // 검색 키워드 카테고리
 const SEARCH_KEYWORDS = {
@@ -43,8 +35,14 @@ function isWithin24Hours(pubDate: string): boolean {
 // HTML 태그 및 특수문자 제거
 function cleanText(text: string): string {
   return text
-    .replace(/(<([^>]+)>)/gi, '')
-    .replace(/[^가-힣\s]/g, ' ')
+    .replace(/<\/?[^>]+(>|$)/g, '') // 모든 HTML 태그 제거
+    .replace(/&lt;/g, '')
+    .replace(/&gt;/g, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\[.*?\]/g, '')
+    .replace(/\(.*?\)/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -71,7 +69,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getNewsForKeyword(keyword: string) {
   try {
-    // API 호출 전 2초 대기 (1초에서 2초로 증가)
+    // API 호출 전 2초 대기
     await delay(2000);
 
     const response = await axios.get(
@@ -101,15 +99,13 @@ async function getNewsForKeyword(keyword: string) {
   } catch (error: any) {
     if (error.response?.status === 429) {
       console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. 10초 후 재시도...`);
-      await delay(10000); // 5초에서 10초로 증가
+      await delay(10000);
       return getNewsForKeyword(keyword);
     }
     
-    // 다른 에러 처리 추가
     const errorMessage = error.response?.data?.errorMessage || error.message;
     console.error(`키워드 "${keyword}" 뉴스 가져오기 실패:`, errorMessage);
     
-    // 네트워크 오류나 일시적인 문제인 경우 재시도
     if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
       console.log(`네트워크 오류 발생. 5초 후 재시도...`);
       await delay(5000);
@@ -161,7 +157,6 @@ async function getAllNewsArticles() {
 
     if (categoryArticles.length > 0) {
       categoryArticles.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
-      
       allArticles.push({
         category,
         articles: categoryArticles
@@ -174,7 +169,6 @@ async function getAllNewsArticles() {
 
 async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
   try {
-    // 구독자 목록 가져오기
     const subscribers = await prisma.newsSubscriber.findMany();
     console.log('구독자 수:', subscribers.length);
 
@@ -183,7 +177,6 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
       return { success: false, message: '구독자가 없습니다.' };
     }
 
-    // 실제 뉴스가 있는 카테고리만 필터링
     const categoriesWithNews = newsCategories.filter(category => 
       category.articles && category.articles.length > 0
     );
@@ -195,7 +188,6 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
 
     console.log('뉴스가 있는 카테고리:', categoriesWithNews.map(c => c.category));
 
-    // HTML 뉴스레터 내용 생성
     let htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
         <h1 style="color: #333; text-align: center;">의료기기 뉴스레터</h1>
@@ -212,40 +204,86 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
             ✉️ 뉴스레터 구독 신청하기
           </a>
           <p style="color: #666; font-size: 12px; margin-top: 10px;">
-            의료기기 업계 뉴스를 매일 아침 이메일로 받아보세요.
+            의료기기 업계 뉴스를 매일 아침 이메일로 받아보세요.<br>
+            이 뉴스레터가 유용하다고 생각하시면 동료분들에게도 구독을 추천해주세요!
           </p>
         </div>
-
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
     `;
 
-    // 각 카테고리별 뉴스 추가
     for (const categoryNews of categoriesWithNews) {
+      console.log(`카테고리 ${categoryNews.category}의 기사 수:`, categoryNews.articles.length);
       htmlContent += `
         <div style="margin: 20px 0;">
           <h2 style="color: #2c5282; border-bottom: 2px solid #2c5282; padding-bottom: 5px;">
-            ${categoryNews.category}
+            ${categoryNews.category} (${categoryNews.articles.length}건)
           </h2>
           <ul style="list-style-type: none; padding: 0;">
       `;
 
       for (const article of categoryNews.articles) {
+        console.log('처리 중인 기사:', article.title);
         const cleanTitle = article.title
-          .replace(/(<([^>]+)>)/gi, '')
+          .replace(/<\/?[^>]+(>|$)/g, '') // 모든 HTML 태그 제거
+          .replace(/&lt;/g, '')
+          .replace(/&gt;/g, '')
           .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&');
+          .replace(/&amp;/g, '&')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\[.*?\]/g, '')
+          .replace(/\(.*?\)/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const cleanDescription = article.description
+          .replace(/<\/?[^>]+(>|$)/g, '') // 모든 HTML 태그 제거
+          .replace(/&lt;/g, '')
+          .replace(/&gt;/g, '')
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\[.*?\]/g, '')
+          .replace(/\(.*?\)/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
 
         htmlContent += `
-          <li style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            <a href="${article.link}" style="color: #1a365d; text-decoration: none; font-weight: bold;">
+          <li style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #e2e8f0;">
+            <a href="${article.link}" 
+               style="color: #2c5282; 
+                      text-decoration: none; 
+                      font-weight: bold;
+                      font-size: 16px;
+                      display: block;
+                      margin-bottom: 8px;">
               ${cleanTitle}
             </a>
-            <p style="color: #4a5568; margin: 5px 0; font-size: 0.9em;">
-              ${article.description.replace(/(<([^>]+)>)/gi, '')}
+            <p style="color: #4a5568; 
+                      margin: 8px 0; 
+                      font-size: 14px;
+                      line-height: 1.5;">
+              ${cleanDescription}
             </p>
-            <small style="color: #718096;">
-              ${article.pubDate.toLocaleString('ko-KR')} | ${article.keyword}
-            </small>
+            <div style="display: flex; 
+                        justify-content: space-between; 
+                        align-items: center;
+                        margin-top: 10px;
+                        font-size: 12px;
+                        color: #718096;">
+              <span>${new Date(article.pubDate).toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</span>
+              <span style="background: #EDF2F7;
+                         padding: 2px 8px;
+                         border-radius: 12px;
+                         font-size: 11px;">
+                ${article.keyword}
+              </span>
+            </div>
           </li>
         `;
       }
@@ -258,7 +296,6 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
 
     htmlContent += `
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-        
         <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f8f9fa;">
           <p style="color: #666;">
             본 뉴스레터는 자동으로 생성되었습니다.<br>
@@ -279,13 +316,16 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
               뉴스레터 구독하기
             </a>
           </div>
+          <p style="color: #666; font-size: 12px; margin-top: 15px;">
+            💡 이 뉴스레터를 받고 싶은 분이 계시다면<br>
+            위의 '뉴스레터 구독하기' 링크를 공유해주세요!
+          </p>
         </div>
       </div>
     `;
 
     console.log('뉴스레터 HTML 생성 완료');
 
-    // 각 구독자에게 이메일 발송
     let successCount = 0;
     let failCount = 0;
     for (const subscriber of subscribers) {
@@ -315,33 +355,8 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
   }
 }
 
-async function testNaverNewsAPI() {
-  try {
-    const response = await axios.get(
-      'https://openapi.naver.com/v1/search/news.json',
-      {
-        params: {
-          query: '의료기기',  // 테스트용 키워드
-          display: 5,
-          sort: 'date',
-        },
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
-        },
-      }
-    );
-    console.log('네이버 API 응답:', JSON.stringify(response.data, null, 2));
-    return response.data;
-  } catch (error: any) {
-    console.error('네이버 API 테스트 실패:', error.response?.data || error.message);
-    return null;
-  }
-}
-
 export async function GET(request: Request) {
   try {
-    // API 키 검증
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
     
@@ -354,7 +369,6 @@ export async function GET(request: Request) {
     }
 
     console.log('뉴스 수집 시작...');
-    // 뉴스 수집
     const newsCategories = await getAllNewsArticles();
     console.log('수집된 뉴스 카테고리:', newsCategories.map(c => ({ 
       category: c.category, 
@@ -369,9 +383,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // 뉴스레터 발송
     const result = await sendNewsletterToAllSubscribers(newsCategories);
-
     return NextResponse.json(result);
   } catch (error) {
     console.error('뉴스레터 처리 중 오류 발생:', error);
