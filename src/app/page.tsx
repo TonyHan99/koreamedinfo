@@ -9,10 +9,10 @@ export default function Home() {
       <section className="relative min-h-[800px] flex items-center justify-center text-white">
         <div className="absolute inset-0">
           <Image
-            src="https://images.unsplash.com/photo-1583912267550-d6c2ac4b0154"
+            src="https://images.unsplash.com/photo-1582719471384-894fbb16e074"
             alt="의료기기 배경"
             fill
-            style={{ objectFit: 'cover' }}
+            style={{ objectFit: 'cover', objectPosition: 'center' }}
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-black/50" />
@@ -80,7 +80,7 @@ export default function Home() {
       <section className="py-24 bg-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <Image
-            src="https://images.unsplash.com/photo-1579154204601-01588f351e67"
+            src="https://images.unsplash.com/photo-1579154204404-7b40108bf5b6"
             alt="의료기기 패턴"
             fill
             style={{ objectFit: 'cover' }}
@@ -97,8 +97,8 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1530026405186-ed1f139313f8"
-                alt="의료기기 인허가"
+                src="https://images.unsplash.com/photo-1576091160550-2173dba999ef"
+                alt="시장 조사 및 분석"
                 width={400}
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
@@ -125,8 +125,8 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1581093458791-9d42cc030552"
-                alt="해외 인증"
+                src="https://images.unsplash.com/photo-1582719508461-905c673771fd"
+                alt="현지 파트너십"
                 width={400}
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
@@ -153,8 +153,8 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1576091160550-2173dba999ef"
-                alt="시장 진출 전략"
+                src="https://images.unsplash.com/photo-1576670159805-381a0aa9c331"
+                alt="판매 전략"
                 width={400}
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
