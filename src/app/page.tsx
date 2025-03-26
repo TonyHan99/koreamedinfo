@@ -9,8 +9,8 @@ export default function Home() {
       <section className="relative min-h-[800px] flex items-center justify-center text-white">
         <div className="absolute inset-0">
           <Image
-            src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926"
-            alt="Medical device background"
+            src="https://images.unsplash.com/photo-1583912267550-d6c2ac4b0154"
+            alt="의료기기 배경"
             fill
             style={{ objectFit: 'cover' }}
             priority
@@ -80,8 +80,8 @@ export default function Home() {
       <section className="py-24 bg-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <Image
-            src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d"
-            alt="Background pattern"
+            src="https://images.unsplash.com/photo-1579154204601-01588f351e67"
+            alt="의료기기 패턴"
             fill
             style={{ objectFit: 'cover' }}
           />
@@ -97,7 +97,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1584036561566-baf8f5f1b144"
+                src="https://images.unsplash.com/photo-1530026405186-ed1f139313f8"
                 alt="의료기기 인허가"
                 width={400}
                 height={300}
@@ -125,7 +125,7 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1563213126-a4273aed2016"
+                src="https://images.unsplash.com/photo-1581093458791-9d42cc030552"
                 alt="해외 인증"
                 width={400}
                 height={300}
@@ -153,7 +153,7 @@ export default function Home() {
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
               <Image
-                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40"
+                src="https://images.unsplash.com/photo-1576091160550-2173dba999ef"
                 alt="시장 진출 전략"
                 width={400}
                 height={300}
