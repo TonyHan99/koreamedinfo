@@ -1,27 +1,27 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import './globals.css'
+import { Inter } from 'next/font/google'
+import { Toaster } from 'react-hot-toast'
+import Navigation from './components/Navigation'
 
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-});
+const inter = Inter({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
-  title: "KoreaMedInfo - 의료기기 GTM 컨설팅",
-  description: "의료기기 GTM 컨설팅 전문 기업",
-};
+export const metadata = {
+  title: 'KoreaMedInfo - 의료기기 해외진출 컨설팅',
+  description: '의료기기 해외진출을 위한 인허가, 시장조사, 파트너십 컨설팅',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="ko">
-      <body className={`${inter.className} antialiased`}>
+      <body className={inter.className}>
+        <Navigation />
         {children}
+        <Toaster position="top-right" />
       </body>
     </html>
-  );
+  )
 }
