@@ -347,22 +347,11 @@ export async function GET(request: Request) {
     
     if (key !== process.env.NEWSLETTER_CRON_KEY) {
       console.log('API 키 불일치:', key);
-      return new Response(JSON.stringify({ error: '유효하지 않은 API 키입니다.' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return NextResponse.json(
+        { error: '유효하지 않은 API 키입니다.' },
+        { status: 401 }
+      );
     }
-
-    // 네이버 API 테스트
-    console.log('네이버 API 테스트 시작...');
-    const testResult = await testNaverNewsAPI();
-    if (!testResult) {
-      return new Response(JSON.stringify({ error: '네이버 API 연결 실패' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    console.log('네이버 API 테스트 성공');
 
     console.log('뉴스 수집 시작...');
     // 뉴스 수집
@@ -374,24 +363,21 @@ export async function GET(request: Request) {
     
     if (!newsCategories || newsCategories.length === 0) {
       console.log('수집된 뉴스가 없습니다.');
-      return new Response(JSON.stringify({ message: '최근 24시간 동안의 새로운 뉴스가 없습니다.' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return NextResponse.json(
+        { message: '최근 24시간 동안의 새로운 뉴스가 없습니다.' },
+        { status: 200 }
+      );
     }
 
     // 뉴스레터 발송
     const result = await sendNewsletterToAllSubscribers(newsCategories);
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('뉴스레터 처리 중 오류 발생:', error);
-    return new Response(JSON.stringify({ error: '뉴스레터 처리 중 오류가 발생했습니다.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(
+      { error: '뉴스레터 처리 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
   }
 } 
