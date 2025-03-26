@@ -1,93 +1,107 @@
 'use client';
 
-import { FormEvent, useRef } from 'react';
+import { useState } from 'react';
 
 export default function ContactForm() {
-  const formRef = useRef<HTMLFormElement>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get('name'),
-      email: formData.get('email'),
-      message: formData.get('message'),
-    };
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
 
     try {
-      console.log('전송 시도:', data);  // 전송 데이터 로깅
-
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(formData),
       });
 
-      console.log('응답 상태:', response.status);  // 응답 상태 로깅
-
-      const result = await response.json();
-      console.log('응답 데이터:', result);  // 응답 데이터 로깅
-
-      if (response.ok) {
-        alert(result.message || '메시지가 성공적으로 전송되었습니다.');
-        formRef.current?.reset();
-      } else {
-        throw new Error(result.error || '메시지 전송에 실패했습니다.');
-      }
+      if (!response.ok) throw new Error('Failed to send message');
+      
+      setSubmitStatus('success');
+      setFormData({ name: '', email: '', message: '' });
     } catch (error) {
-      console.error('에러 상세:', error);  // 에러 상세 로깅
-      alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
+      console.error('Error sending message:', error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-lg">
-      <form ref={formRef} className="space-y-6" onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-xl">
+      <div className="space-y-6">
         <div>
-          <label htmlFor="name" className="block text-base font-semibold text-gray-900 mb-2">
+          <label htmlFor="name" className="block text-sm font-medium text-gray-200 mb-2">
             이름
           </label>
           <input
             type="text"
             id="name"
-            name="name"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-black"
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             required
+            className="w-full px-4 py-3 bg-white/5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+            placeholder="홍길동"
           />
         </div>
         <div>
-          <label htmlFor="email" className="block text-base font-semibold text-gray-900 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-200 mb-2">
             이메일
           </label>
           <input
             type="email"
             id="email"
-            name="email"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-black"
+            value={formData.email}
+            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
             required
+            className="w-full px-4 py-3 bg-white/5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+            placeholder="example@email.com"
           />
         </div>
         <div>
-          <label htmlFor="message" className="block text-base font-semibold text-gray-900 mb-2">
+          <label htmlFor="message" className="block text-sm font-medium text-gray-200 mb-2">
             메시지
           </label>
           <textarea
             id="message"
-            name="message"
-            rows={4}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-black"
+            value={formData.message}
+            onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
             required
-          ></textarea>
+            rows={4}
+            className="w-full px-4 py-3 bg-white/5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+            placeholder="문의하실 내용을 입력해주세요."
+          />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
-        >
-          보내기
-        </button>
-      </form>
-    </div>
+        <div>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSubmitting ? '전송 중...' : '문의하기'}
+          </button>
+        </div>
+        {submitStatus === 'success' && (
+          <div className="text-green-400 text-sm mt-2">
+            메시지가 성공적으로 전송되었습니다.
+          </div>
+        )}
+        {submitStatus === 'error' && (
+          <div className="text-red-400 text-sm mt-2">
+            메시지 전송에 실패했습니다. 다시 시도해주세요.
+          </div>
+        )}
+      </div>
+    </form>
   );
 } 
