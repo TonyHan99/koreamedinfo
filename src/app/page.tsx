@@ -21,10 +21,10 @@ export default function Home() {
           <div className="animate-fadeIn">
             <h1 className="text-5xl lg:text-7xl font-bold mb-8">
               <span className="bg-blue-600 px-6 py-2 rounded-lg inline-block mb-4">KoreaMedInfo</span><br />
-              <span className="text-[60%] mt-6 inline-block font-light">의료기기 GTM 컨설팅</span>
+              <span className="text-[60%] mt-6 inline-block font-light">의료기기 해외진출 컨설팅</span>
             </h1>
             <p className="text-xl lg:text-2xl mb-12 text-gray-200">
-              아시아 지역 폭넓은 네트워크를 바탕으로 해외진출 및 유통망 구축 서비스를 제공합니다
+              대한민국 의료기기 제조사의 성공적인 해외 시장 진출을 위한 토탈 솔루션을 제공합니다
             </p>
             <a href="#contact" className="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors duration-300">
               문의하기
@@ -40,7 +40,7 @@ export default function Home() {
           <div className="text-center mb-20">
             <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-white">전문성과 경험</h2>
             <p className="text-gray-300 text-lg max-w-3xl mx-auto">
-              20년 이상의 의료기기 인허가 경험과 폭넓은 네트워크를 바탕으로 최고의 서비스를 제공합니다
+              정형외과, 신경외과, 심혈관내과, 일반외과 및 병원소모품에 대한 깊은 이해를 바탕으로 맞춤형 해외 진출 전략을 제시합니다
             </p>
           </div>
 
@@ -49,27 +49,27 @@ export default function Home() {
               <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <FiAward className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-white text-center">20년+ 경력</h3>
+              <h3 className="text-2xl font-bold mb-4 text-white text-center">의료분야 전문성</h3>
               <p className="text-gray-300 text-center">
-                의료기기 인허가 분야에서 20년 이상의 전문 경력을 보유하고 있습니다
+                의료기기 제품 및 시술에 대한 깊은 이해를 바탕으로 전문적인 컨설팅을 제공합니다
               </p>
             </div>
             <div className="bg-gray-800 rounded-2xl p-8 transform hover:scale-105 transition-transform duration-300">
               <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <FiUsers className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-white text-center">전문 컨설팅</h3>
+              <h3 className="text-2xl font-bold mb-4 text-white text-center">현지 네트워크</h3>
               <p className="text-gray-300 text-center">
-                식약처 의료기기 심사위원 경력의 전문가가 직접 컨설팅을 진행합니다
+                해외 현지 유통사, 판매사와의 강력한 네트워크를 보유하고 있습니다
               </p>
             </div>
             <div className="bg-gray-800 rounded-2xl p-8 transform hover:scale-105 transition-transform duration-300">
               <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <FiGlobe className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-white text-center">글로벌 네트워크</h3>
+              <h3 className="text-2xl font-bold mb-4 text-white text-center">맞춤형 전략</h3>
               <p className="text-gray-300 text-center">
-                아시아 10개국 이상의 유통 대리점 네트워크를 보유하고 있습니다
+                시장조사부터 유통망 구축까지 고객 맞춤형 진출 전략을 수립합니다
               </p>
             </div>
           </div>
@@ -90,7 +90,7 @@ export default function Home() {
           <div className="text-center mb-20">
             <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-gray-900">주요 서비스</h2>
             <p className="text-gray-600 text-lg max-w-3xl mx-auto">
-              의료기기 인허가부터 시장 진출까지 토탈 솔루션을 제공합니다
+              해외 시장 진출을 위한 전략 수립부터 현지 파트너십 구축까지 원스톱 솔루션을 제공합니다
             </p>
           </div>
 
@@ -103,23 +103,23 @@ export default function Home() {
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
               />
-              <h3 className="text-2xl font-bold mb-4">의료기기 인허가</h3>
+              <h3 className="text-2xl font-bold mb-4">시장 조사 및 분석</h3>
               <ul className="space-y-3 text-gray-600">
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  의료기기 허가 및 신고
+                  현지 시장 규모 분석
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  GMP 심사 대행
+                  경쟁사 제품 조사
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  임상시험 계획 수립
+                  의료기관 수요 분석
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  기술문서 작성
+                  가격 전략 수립
                 </li>
               </ul>
             </div>
@@ -131,23 +131,23 @@ export default function Home() {
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
               />
-              <h3 className="text-2xl font-bold mb-4">해외 인증</h3>
+              <h3 className="text-2xl font-bold mb-4">현지 파트너십</h3>
               <ul className="space-y-3 text-gray-600">
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  CE MDR 인증
+                  유통사 발굴 및 계약
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  FDA 510(k)
+                  판매사 네트워크 구축
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  PMDA 등록
+                  현지 의료진 네트워킹
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  해외 GMP 인증
+                  파트너사 실사 지원
                 </li>
               </ul>
             </div>
@@ -159,23 +159,23 @@ export default function Home() {
                 height={300}
                 className="rounded-xl mb-6 w-full h-48 object-cover"
               />
-              <h3 className="text-2xl font-bold mb-4">시장 진출 전략</h3>
+              <h3 className="text-2xl font-bold mb-4">판매 전략</h3>
               <ul className="space-y-3 text-gray-600">
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  시장 조사 및 분석
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  진출 전략 수립
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
-                  파트너십 구축
+                  제품 포지셔닝
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
                   마케팅 전략 수립
+                </li>
+                <li className="flex items-center">
+                  <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
+                  영업 전략 개발
+                </li>
+                <li className="flex items-center">
+                  <span className="w-2 h-2 bg-blue-600 rounded-full mr-3"></span>
+                  성과 관리 체계 구축
                 </li>
               </ul>
             </div>
