@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,7 +11,7 @@ model Subscriber {
   id        String   @id @default(cuid())
   name      String
   phone     String
-  company   String
+  company   String?
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -24,8 +21,147 @@ model NewsSubscriber {
   id        String   @id @default(cuid())
   name      String
   phone     String
-  company   String
+  company   String?
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-} 
+}
+
+model User {
+  id                                 String        @id
+  email                              String        @unique
+  password                           String
+  nickname                           String        @unique
+  company                            String?
+  position                           String?
+  phoneNumber                        String?
+  isVerified                         Boolean       @default(false)
+  verifiedAt                         DateTime?
+  profileImage                       String?
+  createdAt                          DateTime      @default(now())
+  updatedAt                          DateTime
+  isAdmin                            Boolean       @default(false)
+  role                               String        @default("USER")
+  ActivityLog                        ActivityLog[]
+  Comment                            Comment[]
+  Post                               Post[]
+  Report_Report_reportedUserIdToUser Report[]      @relation("Report_reportedUserIdToUser")
+  Report_Report_reporterIdToUser     Report[]      @relation("Report_reporterIdToUser")
+}
+
+model ActivityLog {
+  id        String   @id
+  action    String
+  targetId  String?
+  details   String?
+  userId    String
+  postId    String?
+  commentId String?
+  reportId  String?
+  createdAt DateTime @default(now())
+  Comment   Comment? @relation(fields: [commentId], references: [id])
+  Post      Post?    @relation(fields: [postId], references: [id])
+  Report    Report?  @relation(fields: [reportId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model Category {
+  id          String   @id
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  Post        Post[]
+
+  @@index([order])
+}
+
+model Comment {
+  id          String        @id
+  content     String
+  postId      String
+  authorId    String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  ActivityLog ActivityLog[]
+  User        User          @relation(fields: [authorId], references: [id])
+  Post        Post          @relation(fields: [postId], references: [id])
+  Report      Report[]
+}
+
+model News {
+  id          String   @id
+  title       String
+  content     String
+  source      String
+  url         String
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model Post {
+  id          String        @id
+  title       String
+  content     String
+  published   Boolean       @default(true)
+  authorId    String
+  views       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  categoryId  String
+  ActivityLog ActivityLog[]
+  Comment     Comment[]
+  User        User          @relation(fields: [authorId], references: [id])
+  Category    Category      @relation(fields: [categoryId], references: [id])
+  Report      Report[]
+
+  @@index([authorId])
+  @@index([categoryId])
+}
+
+model Report {
+  id                               String        @id
+  reason                           String
+  description                      String?
+  status                           String        @default("PENDING")
+  reporterId                       String
+  reportedUserId                   String?
+  postId                           String?
+  commentId                        String?
+  createdAt                        DateTime      @default(now())
+  updatedAt                        DateTime
+  ActivityLog                      ActivityLog[]
+  Comment                          Comment?      @relation(fields: [commentId], references: [id])
+  Post                             Post?         @relation(fields: [postId], references: [id])
+  User_Report_reportedUserIdToUser User?         @relation("Report_reportedUserIdToUser", fields: [reportedUserId], references: [id])
+  User_Report_reporterIdToUser     User          @relation("Report_reporterIdToUser", fields: [reporterId], references: [id])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+model EmailQueue {
+  id           String   @id @default(cuid())
+  email        String
+  content      String   @db.Text
+  status       String   // 'pending', 'failed', 'completed'
+  error        String?
+  retryCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+  scheduledFor DateTime
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  email     String
+  status    String
+  error     String?
+  provider  String
+  sentAt    DateTime @default(now())
+}
