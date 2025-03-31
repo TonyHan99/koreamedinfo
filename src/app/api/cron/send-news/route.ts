@@ -67,7 +67,38 @@ function areTitlesSimilar(title1: string, title2: string): boolean {
 // API 호출 사이의 딜레이 함수
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function getNewsForKeyword(keyword: string) {
+interface ApiError extends Error {
+  response?: {
+    status?: number;
+    data?: {
+      errorMessage?: string;
+    };
+  };
+  code?: string;
+  message: string;
+}
+
+interface PendingEmail {
+  id: string;
+  email: string;
+  status: string;
+  scheduledFor: Date;
+}
+
+interface NewsArticle {
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+  keyword: string;
+}
+
+interface NewsCategory {
+  category: string;
+  articles: NewsArticle[];
+}
+
+async function getNewsForKeyword(keyword: string): Promise<any[]> {
   try {
     // API 호출 전 대기 시간 감소
     await delay(500);
@@ -96,22 +127,24 @@ async function getNewsForKeyword(keyword: string) {
       }));
 
     return recentNews;
-  } catch (error: any) {
-    if (error.response?.status === 429) {
+  } catch (error) {
+    const apiError = error as ApiError;
+
+    if (apiError.response?.status === 429) {
       console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. 2초 후 재시도...`);
       await delay(2000);
       return getNewsForKeyword(keyword);
     }
-    
-    const errorMessage = error.response?.data?.errorMessage || error.message;
+
+    const errorMessage = apiError.response?.data?.errorMessage || apiError.message;
     console.error(`키워드 "${keyword}" 뉴스 가져오기 실패:`, errorMessage);
-    
-    if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
+
+    if (apiError.code === 'ECONNRESET' || apiError.code === 'ETIMEDOUT') {
       console.log(`네트워크 오류 발생. 2초 후 재시도...`);
       await delay(2000);
       return getNewsForKeyword(keyword);
     }
-    
+
     return [];
   }
 }
@@ -171,52 +204,269 @@ async function getAllNewsArticles() {
   return results.filter(result => result !== null);
 }
 
+// 상수 정의
+const BATCH_SIZE = 3;  // 한 번에 3명씩
+const EMAIL_DELAY = 1000;  // 이메일 간 1초 대기
+const BATCH_DELAY = 3000;  // 배치 간 3초 대기
+const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
+const MAX_EMAILS_PER_RUN = 15;    // 한 번 실행당 최대 15명
+
 async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
   try {
-    const subscribers = await prisma.newsSubscriber.findMany();
-    console.log('구독자 수:', subscribers.length);
+    // 처리되지 않은 이전 큐 항목 확인
+    const pendingEmails = await prisma.emailQueue.findMany({
+      where: {
+        status: 'pending',
+        scheduledFor: {
+          lte: new Date()
+        }
+      }
+    });
 
-    if (subscribers.length === 0) {
-      console.log('구독자가 없습니다.');
-      return { success: false, message: '구독자가 없습니다.' };
+    // 새로운 구독자 목록 가져오기
+    const subscribers = await prisma.newsSubscriber.findMany({
+      where: {
+        email: {
+          notIn: pendingEmails.map((pe: PendingEmail) => pe.email)
+        }
+      }
+    });
+
+    console.log(`총 구독자 수: ${subscribers.length}, 대기 중인 이메일: ${pendingEmails.length}`);
+
+    let successCount = 0;
+    let failCount = 0;
+    const startTime = Date.now();
+
+    // HTML 컨텐츠 생성 (기존 코드 유지)
+    const htmlContent = generateNewsletterContent(newsCategories);
+
+    // 이전 실패한 이메일 먼저 처리
+    for (const pending of pendingEmails) {
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.log('최대 실행 시간 초과, 나머지는 다음 배치로 연기');
+        break;
+      }
+
+      try {
+        const result = await sendEmailWithRetry(pending.email, htmlContent);
+        if (result.success) {
+          successCount++;
+          await prisma.emailQueue.delete({ where: { id: pending.id } });
+        } else {
+          failCount++;
+          await updateFailedEmailQueue(pending.id, result.error || '알 수 없는 오류');
+        }
+        await new Promise(resolve => setTimeout(resolve, EMAIL_DELAY));
+      } catch (error: unknown) {
+        failCount++;
+        if (error instanceof Error) {
+          await updateFailedEmailQueue(pending.id, error.message);
+        } else {
+          await updateFailedEmailQueue(pending.id, 'Unknown error occurred');
+        }
+      }
     }
 
-    const categoriesWithNews = newsCategories.filter(category => 
-      category.articles && category.articles.length > 0
-    );
+    // 새로운 구독자 처리
+    for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        // 남은 구독자 큐잉
+        const remainingSubscribers = subscribers.slice(i);
+        await queueRemainingEmails(remainingSubscribers, htmlContent);
+        break;
+      }
 
-    if (categoriesWithNews.length === 0) {
-      console.log('최근 24시간 동안의 새로운 뉴스가 없습니다.');
-      return { success: false, message: '최근 24시간 동안의 새로운 뉴스가 없습니다.' };
+      const batch = subscribers.slice(i, i + BATCH_SIZE);
+      
+      for (const subscriber of batch) {
+        try {
+          const result = await sendEmailWithRetry(subscriber.email, htmlContent);
+          if (result.success) {
+            successCount++;
+            await logEmailSuccess(subscriber.email);
+          } else {
+            failCount++;
+            await queueFailedEmail(subscriber.email, htmlContent, result.error || '알 수 없는 오류');
+          }
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            await queueFailedEmail(subscriber.email, htmlContent, error.message);
+          } else {
+            await queueFailedEmail(subscriber.email, htmlContent, 'Unknown error');
+          }
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, EMAIL_DELAY));
+      }
+
+      if (i + BATCH_SIZE < subscribers.length) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
     }
 
-    console.log('뉴스가 있는 카테고리:', categoriesWithNews.map(c => c.category));
+    return {
+      success: true,
+      message: `처리 완료: 성공 ${successCount}, 실패 ${failCount}`,
+      details: {
+        total: subscribers.length + pendingEmails.length,
+        success: successCount,
+        failed: failCount,
+        executionTime: Date.now() - startTime
+      }
+    };
 
-    let htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
-        <h1 style="color: #333; text-align: center;">의료기기 뉴스레터</h1>
-        <p style="color: #666; text-align: center;">최근 24시간 동안의 주요 의료기기 뉴스입니다.</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <a href="https://koreamedinfo.com/industry-news" 
-             style="display: inline-block; 
-                    background-color: #4F46E5; 
-                    color: white; 
-                    text-decoration: none;
-                    padding: 10px 20px;
-                    border-radius: 5px;
-                    font-size: 14px;">
-            ✉️ 뉴스레터 구독 신청하기
-          </a>
-          <p style="color: #666; font-size: 12px; margin-top: 10px;">
-            의료기기 업계 뉴스를 매일 아침 이메일로 받아보세요.<br>
-            이 뉴스레터가 유용하다고 생각하시면 동료분들에게도 구독을 추천해주세요!
-          </p>
-        </div>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-    `;
+  } catch (error) {
+    console.error('뉴스레터 발송 중 오류:', error);
+    throw error;
+  }
+}
 
-    for (const categoryNews of categoriesWithNews) {
-      console.log(`카테고리 ${categoryNews.category}의 기사 수:`, categoryNews.articles.length);
+async function sendEmailWithRetry(email: string, content: string, maxRetries = 3) {
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const result = await sendEmail({
+        to: email,
+        subject: `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`,
+        content: content,
+        saveSentMail: true
+      });
+
+      if (result.success) {
+        return { success: true };
+      }
+
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+    } catch (error: unknown) {
+      if (retryCount === maxRetries - 1) {
+        if (error instanceof Error) {
+          return { success: false, error: error.message };
+        } else {
+          return { success: false, error: 'Unknown error occurred' };
+        }
+      }
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+    }
+  }
+
+  return { success: false, error: '최대 재시도 횟수 초과' };
+}
+
+async function queueRemainingEmails(subscribers: any[], content: string) {
+  const queueData = subscribers.map(sub => ({
+    email: sub.email,
+    content: content,
+    status: 'pending',
+    retryCount: 0,
+    scheduledFor: new Date(Date.now() + 300000) // 5분 후
+  }));
+
+  await prisma.emailQueue.createMany({ data: queueData });
+}
+
+async function logEmailSuccess(email: string) {
+  try {
+    await prisma.emailLog.create({
+      data: {
+        email,
+        status: 'success',
+        provider: email.includes('@gmail.com') ? 'gmail' : 'other'
+      }
+    });
+
+    const logs = await prisma.emailLog.findMany({
+      where: {
+        sentAt: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+
+    const successRate = (logs.filter(log => log.status === 'success').length / logs.length) * 100;
+    
+    if (successRate < 80 && process.env.ADMIN_EMAIL) {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL,
+        subject: '뉴스레터 발송 성공률 저조',
+        content: `최근 24시간 성공률: ${successRate.toFixed(1)}%`
+      });
+    }
+  } catch (error) {
+    console.error('Failed to log email success:', error);
+  }
+}
+
+async function queueFailedEmail(email: string, content: string, error: string) {
+  try {
+    await Promise.all([
+      prisma.emailQueue.create({
+        data: {
+          email,
+          content,
+          status: 'failed',
+          error,
+          retryCount: 0,
+          scheduledFor: new Date(Date.now() + 900000) // 15분 후
+        }
+      }),
+      prisma.emailLog.create({
+        data: {
+          email,
+          status: 'failed',
+          error,
+          provider: email.includes('@gmail.com') ? 'gmail' : 'other'
+        }
+      })
+    ]);
+  } catch (error) {
+    console.error(`Failed to queue email for ${email}:`, error);
+    if (process.env.ADMIN_EMAIL) {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL,
+        subject: '뉴스레터 발송 큐잉 실패',
+        content: `이메일: ${email}\n에러: ${error}`
+      });
+    }
+  }
+}
+
+async function updateFailedEmailQueue(id: string, error: string) {
+  await prisma.emailQueue.update({
+    where: { id },
+    data: {
+      retryCount: { increment: 1 },
+      error,
+      scheduledFor: new Date(Date.now() + 900000) // 15분 후
+    }
+  });
+}
+
+function generateNewsletterContent(newsCategories: NewsCategory[]): string {
+  let htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+      <h1 style="color: #333; text-align: center;">의료기기 뉴스레터</h1>
+      <p style="color: #666; text-align: center;">최근 24시간 동안의 주요 의료기기 뉴스입니다.</p>
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="https://koreamedinfo.com/industry-news" 
+           style="display: inline-block; 
+                  background-color: #4F46E5; 
+                  color: white; 
+                  text-decoration: none;
+                  padding: 10px 20px;
+                  border-radius: 5px;
+                  font-size: 14px;">
+          ✉️ 뉴스레터 구독 신청하기
+        </a>
+      </div>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+  `;
+
+  for (const categoryNews of newsCategories) {
+    if (categoryNews.articles && categoryNews.articles.length > 0) {
       htmlContent += `
         <div style="margin: 20px 0;">
           <h2 style="color: #2c5282; border-bottom: 2px solid #2c5282; padding-bottom: 5px;">
@@ -226,67 +476,23 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
       `;
 
       for (const article of categoryNews.articles) {
-        console.log('처리 중인 기사:', article.title);
-        const cleanTitle = article.title
-          .replace(/<\/?[^>]+(>|$)/g, '') // 모든 HTML 태그 제거
-          .replace(/&lt;/g, '')
-          .replace(/&gt;/g, '')
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/\[.*?\]/g, '')
-          .replace(/\(.*?\)/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        const cleanDescription = article.description
-          .replace(/<\/?[^>]+(>|$)/g, '') // 모든 HTML 태그 제거
-          .replace(/&lt;/g, '')
-          .replace(/&gt;/g, '')
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/\[.*?\]/g, '')
-          .replace(/\(.*?\)/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        const cleanTitle = cleanText(article.title);
+        const cleanDescription = cleanText(article.description);
 
         htmlContent += `
-          <li style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #e2e8f0;">
+          <li style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
             <a href="${article.link}" 
                style="color: #2c5282; 
                       text-decoration: none; 
                       font-weight: bold;
-                      font-size: 16px;
-                      display: block;
-                      margin-bottom: 8px;">
+                      font-size: 16px;">
               ${cleanTitle}
             </a>
-            <p style="color: #4a5568; 
-                      margin: 8px 0; 
-                      font-size: 14px;
-                      line-height: 1.5;">
+            <p style="color: #4a5568; margin: 8px 0; font-size: 14px;">
               ${cleanDescription}
             </p>
-            <div style="display: flex; 
-                        justify-content: space-between; 
-                        align-items: center;
-                        margin-top: 10px;
-                        font-size: 12px;
-                        color: #718096;">
-              <span>${new Date(article.pubDate).toLocaleString('ko-KR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}</span>
-              <span style="background: #EDF2F7;
-                         padding: 2px 8px;
-                         border-radius: 12px;
-                         font-size: 11px;">
-                ${article.keyword}
-              </span>
+            <div style="color: #718096; font-size: 12px;">
+              ${new Date(article.pubDate).toLocaleString('ko-KR')}
             </div>
           </li>
         `;
@@ -297,100 +503,39 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
         </div>
       `;
     }
-
-    htmlContent += `
-        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-        <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f8f9fa;">
-          <p style="color: #666;">
-            본 뉴스레터는 자동으로 생성되었습니다.<br>
-            구독 해지를 원하시면 관리자에게 문의해주세요.
-          </p>
-          <div style="margin-top: 20px;">
-            <a href="https://koreamedinfo.com" 
-               style="color: #4F46E5; 
-                      text-decoration: none; 
-                      font-size: 14px;">
-              코리아메드인포 방문하기
-            </a>
-            <span style="color: #666; margin: 0 10px;">|</span>
-            <a href="https://koreamedinfo.com/industry-news" 
-               style="color: #4F46E5; 
-                      text-decoration: none; 
-                      font-size: 14px;">
-              뉴스레터 구독하기
-            </a>
-          </div>
-          <p style="color: #666; font-size: 12px; margin-top: 15px;">
-            💡 이 뉴스레터를 받고 싶은 분이 계시다면<br>
-            위의 '뉴스레터 구독하기' 링크를 공유해주세요!
-          </p>
-        </div>
-      </div>
-    `;
-
-    console.log('뉴스레터 HTML 생성 완료');
-
-    let successCount = 0;
-    let failCount = 0;
-    for (const subscriber of subscribers) {
-      try {
-        console.log(`${subscriber.email}에게 이메일 발송 시도...`);
-        const emailResult = await sendEmail({
-          to: subscriber.email,
-          subject: `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`,
-          content: htmlContent,
-          saveSentMail: true
-        });
-        console.log('이메일 발송 결과:', emailResult);
-        successCount++;
-        console.log(`${subscriber.email}에게 발송 성공`);
-      } catch (error) {
-        failCount++;
-        console.error(`구독자 ${subscriber.email}에게 발송 실패:`, error);
-      }
-    }
-
-    const resultMessage = `총 ${subscribers.length}명 중 ${successCount}명 발송 성공, ${failCount}명 실패`;
-    console.log(resultMessage);
-    return { success: true, message: resultMessage };
-  } catch (error) {
-    console.error('뉴스레터 발송 중 오류 발생:', error);
-    throw error;
   }
+
+  htmlContent += `
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <div style="text-align: center; color: #666; font-size: 12px;">
+        <p>본 뉴스레터는 자동으로 생성되었습니다.</p>
+        <p>구독 해지를 원하시면 관리자에게 문의해주세요.</p>
+      </div>
+    </div>
+  `;
+
+  return htmlContent;
 }
 
+// Vercel API Route handler
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
     
     if (key !== process.env.NEWSLETTER_CRON_KEY) {
-      console.log('API 키 불일치:', key);
       return NextResponse.json(
         { error: '유효하지 않은 API 키입니다.' },
         { status: 401 }
       );
     }
 
-    console.log('뉴스 수집 시작...');
     const newsCategories = await getAllNewsArticles();
-    console.log('수집된 뉴스 카테고리:', newsCategories.map(c => ({ 
-      category: c.category, 
-      articleCount: c.articles.length 
-    })));
-    
-    if (!newsCategories || newsCategories.length === 0) {
-      console.log('수집된 뉴스가 없습니다.');
-      return NextResponse.json(
-        { message: '최근 24시간 동안의 새로운 뉴스가 없습니다.' },
-        { status: 200 }
-      );
-    }
-
     const result = await sendNewsletterToAllSubscribers(newsCategories);
+    
     return NextResponse.json(result);
   } catch (error) {
-    console.error('뉴스레터 처리 중 오류 발생:', error);
+    console.error('뉴스레터 처리 중 오류:', error);
     return NextResponse.json(
       { error: '뉴스레터 처리 중 오류가 발생했습니다.' },
       { status: 500 }
