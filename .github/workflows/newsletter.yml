@@ -10,8 +10,8 @@ jobs:
     steps:
       - name: Send Newsletter
         run: |
-          curl -X GET ${{ secrets.NEWSLETTER_API_URL }} \
-          -H "Authorization: Bearer ${{ secrets.API_SECRET_KEY }}"
+          curl -X GET "${NEWSLETTER_API_URL}" \
+            -H "Authorization: Bearer ${API_SECRET_KEY}"
         env:
           NEWSLETTER_API_URL: ${{ secrets.NEWSLETTER_API_URL }}
           API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }} 

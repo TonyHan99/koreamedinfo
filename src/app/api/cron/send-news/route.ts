@@ -209,10 +209,13 @@ const BATCH_SIZE = 3;  // 한 번에 3명씩
 const EMAIL_DELAY = 1000;  // 이메일 간 1초 대기
 const BATCH_DELAY = 3000;  // 배치 간 3초 대기
 const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
-const MAX_EMAILS_PER_RUN = 15;    // 한 번 실행당 최대 15명
+const MAX_EMAILS_PER_RUN = 50;    // 한 번 실행당 최대 50명으로 증가
 
 async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
   try {
+    // 전체 구독자 수 먼저 확인
+    const totalSubscriberCount = await prisma.newsSubscriber.count();
+    
     // 처리되지 않은 이전 큐 항목 확인
     const pendingEmails = await prisma.emailQueue.findMany({
       where: {
@@ -232,13 +235,19 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
       }
     });
 
-    console.log(`총 구독자 수: ${subscribers.length}, 대기 중인 이메일: ${pendingEmails.length}`);
+    console.log(`
+      전체 구독자 수: ${totalSubscriberCount}
+      이번 실행에서 처리할 구독자 수: ${subscribers.length}
+      대기 중인 이메일: ${pendingEmails.length}
+      배치 크기: ${BATCH_SIZE}
+      예상 배치 수: ${Math.ceil(subscribers.length / BATCH_SIZE)}
+    `);
 
     let successCount = 0;
     let failCount = 0;
     const startTime = Date.now();
 
-    // HTML 컨텐츠 생성 (기존 코드 유지)
+    // HTML 컨텐츠 생성
     const htmlContent = generateNewsletterContent(newsCategories);
 
     // 이전 실패한 이메일 먼저 처리
@@ -248,76 +257,54 @@ async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
         break;
       }
 
-      try {
-        const result = await sendEmailWithRetry(pending.email, htmlContent);
-        if (result.success) {
-          successCount++;
-          await prisma.emailQueue.delete({ where: { id: pending.id } });
-        } else {
-          failCount++;
-          await updateFailedEmailQueue(pending.id, result.error || '알 수 없는 오류');
-        }
-        await new Promise(resolve => setTimeout(resolve, EMAIL_DELAY));
-      } catch (error: unknown) {
+      const result = await sendEmailWithRetry(pending.email, htmlContent);
+      
+      if (result.success) {
+        await prisma.emailQueue.delete({ where: { id: pending.id } });
+        await logEmailSuccess(pending.email);
+        successCount++;
+        await delay(EMAIL_DELAY);
+      } else {
+        await updateFailedEmailQueue(pending.id, result.error || '알 수 없는 오류');
         failCount++;
-        if (error instanceof Error) {
-          await updateFailedEmailQueue(pending.id, error.message);
-        } else {
-          await updateFailedEmailQueue(pending.id, 'Unknown error occurred');
-        }
       }
     }
 
-    // 새로운 구독자 처리
+    // 새로운 구독자들에게 이메일 발송
     for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-        // 남은 구독자 큐잉
+        // 남은 구독자들은 큐에 추가
         const remainingSubscribers = subscribers.slice(i);
         await queueRemainingEmails(remainingSubscribers, htmlContent);
+        console.log(`${remainingSubscribers.length}명의 구독자를 다음 배치로 연기`);
         break;
       }
 
       const batch = subscribers.slice(i, i + BATCH_SIZE);
-      
+      console.log(`배치 ${Math.floor(i / BATCH_SIZE) + 1} 처리 중: ${batch.length}명`);
+
       for (const subscriber of batch) {
-        try {
-          const result = await sendEmailWithRetry(subscriber.email, htmlContent);
-          if (result.success) {
-            successCount++;
-            await logEmailSuccess(subscriber.email);
-          } else {
-            failCount++;
-            await queueFailedEmail(subscriber.email, htmlContent, result.error || '알 수 없는 오류');
-          }
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            await queueFailedEmail(subscriber.email, htmlContent, error.message);
-          } else {
-            await queueFailedEmail(subscriber.email, htmlContent, 'Unknown error');
-          }
-        }
+        const result = await sendEmailWithRetry(subscriber.email, htmlContent);
         
-        await new Promise(resolve => setTimeout(resolve, EMAIL_DELAY));
+        if (result.success) {
+          await logEmailSuccess(subscriber.email);
+          successCount++;
+          await delay(EMAIL_DELAY);
+        } else {
+          await queueFailedEmail(subscriber.email, htmlContent, result.error || '알 수 없는 오류');
+          failCount++;
+        }
       }
 
+      // 배치 간 대기
       if (i + BATCH_SIZE < subscribers.length) {
-        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        await delay(BATCH_DELAY);
       }
     }
 
-    return {
-      success: true,
-      message: `처리 완료: 성공 ${successCount}, 실패 ${failCount}`,
-      details: {
-        total: subscribers.length + pendingEmails.length,
-        success: successCount,
-        failed: failCount,
-        executionTime: Date.now() - startTime
-      }
-    };
-
+    return { successCount, failCount };
   } catch (error) {
-    console.error('뉴스레터 발송 중 오류:', error);
+    console.error('뉴스레터 발송 중 오류 발생:', error);
     throw error;
   }
 }
@@ -520,24 +507,21 @@ function generateNewsletterContent(newsCategories: NewsCategory[]): string {
 // Vercel API Route handler
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const key = searchParams.get('key');
-    
-    if (key !== process.env.NEWSLETTER_CRON_KEY) {
-      return NextResponse.json(
-        { error: '유효하지 않은 API 키입니다.' },
-        { status: 401 }
-      );
-    }
-
     const newsCategories = await getAllNewsArticles();
     const result = await sendNewsletterToAllSubscribers(newsCategories);
     
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('뉴스레터 처리 중 오류:', error);
     return NextResponse.json(
-      { error: '뉴스레터 처리 중 오류가 발생했습니다.' },
+      { 
+        message: `처리 완료: 성공 ${result.successCount}, 실패 ${result.failCount}`,
+        success: true,
+        result 
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('뉴스레터 발송 실패:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '알 수 없는 오류' },
       { status: 500 }
     );
   }
