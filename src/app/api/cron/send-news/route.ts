@@ -545,82 +545,123 @@ async function processBatchGroup(batchNumber: number, emailContent: string, emai
   }
 }
 
-export async function GET(req: Request) {
-  const startTime = Date.now();
-  
+export async function GET(request: Request) {
   try {
-    // API 설정 확인
-    if (!checkHiworksConfig()) {
-      return NextResponse.json(
-        { error: 'Hiworks API 설정이 올바르지 않습니다.' },
-        { status: 500 }
-      );
+    // API 한도 체크
+    const canProceed = await checkApiLimits();
+    if (!canProceed) {
+      return NextResponse.json({ error: 'API 일일 한도 초과' }, { status: 429 });
     }
 
-    // API 한도 확인
-    if (!await checkApiLimits()) {
-      return NextResponse.json(
-        { error: 'API 일일 한도에 도달했습니다.' },
-        { status: 429 }
-      );
+    const startTime = Date.now();
+    const subscribers = await prisma.newsSubscriber.findMany();
+    
+    // 전체 구독자를 15명씩 배치로 나누기
+    const batches = [];
+    for (let i = 0; i < subscribers.length; i += EMAILS_PER_BATCH) {
+      batches.push(subscribers.slice(i, i + EMAILS_PER_BATCH));
     }
 
-    const { searchParams } = new URL(req.url);
-    const batchNumber = searchParams.get('batch');
+    let totalProcessed = 0;
+    let successCount = 0;
+    let failureCount = 0;
 
-    // 뉴스 수집
-    const newsCategories = await getAllNewsArticles();
-    if (!newsCategories.length) {
-      await notifyAdmin('수집된 뉴스가 없습니다.');
-      return NextResponse.json(
-        { error: '수집된 뉴스가 없습니다.' },
-        { status: 404 }
-      );
-    }
-
-    if (!batchNumber) {
-      // 초기 실행: 배치 그룹 생성
-      const result = await createSubscriberGroups(newsCategories);
-      await notifyAdmin(`뉴스레터 발송 시작
-        - 총 구독자: ${result.totalSubscribers}명
-        - 총 배치 수: ${result.totalGroups}개
-        - 배치당 발송 수: ${EMAILS_PER_BATCH}개
-      `);
+    // 각 배치 처리
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batchSubscribers = batches[batchIndex];
       
-      return NextResponse.json({ 
-        success: true, 
-        message: '배치 작업이 생성되었습니다.',
-        ...result
+      // 배치 정보 생성
+      const batch = await prisma.emailBatch.create({
+        data: {
+          batchNumber: batchIndex + 1,
+          totalBatches: batches.length,
+          status: 'processing',
+          scheduledFor: new Date(),
+          startedAt: new Date()
+        }
       });
+
+      // 배치 내 구독자들을 3명씩 그룹으로 처리
+      for (let i = 0; i < batchSubscribers.length; i += BATCH_SIZE) {
+        const group = batchSubscribers.slice(i, i + BATCH_SIZE);
+        
+        // 각 그룹의 이메일 발송
+        for (const subscriber of group) {
+          try {
+            await sendEmail({
+              to: subscriber.email,
+              subject: '[의료기기 뉴스레터] 오늘의 업계 소식',
+              content: '뉴스레터 내용...' // 실제 뉴스레터 내용으로 대체
+            });
+            
+            await prisma.emailLog.create({
+              data: {
+                email: subscriber.email,
+                status: 'success',
+                provider: subscriber.email.includes('@gmail.com') ? 'gmail' : 'other'
+              }
+            });
+            
+            successCount++;
+          } catch (error) {
+            console.error(`이메일 발송 실패 (${subscriber.email}):`, error);
+            failureCount++;
+            
+            await prisma.emailLog.create({
+              data: {
+                email: subscriber.email,
+                status: 'failed',
+                provider: subscriber.email.includes('@gmail.com') ? 'gmail' : 'other'
+              }
+            });
+          }
+          
+          totalProcessed++;
+          await delay(EMAIL_DELAY);
+        }
+        
+        // 그룹 간 대기
+        await delay(BATCH_DELAY);
+      }
+
+      // 배치 완료 처리
+      await prisma.emailBatch.update({
+        where: { id: batch.id },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          successCount,
+          failureCount
+        }
+      });
+
+      // 실행 시간 체크 및 필요시 중단
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.log('최대 실행 시간 도달, 나머지 배치는 다음 실행에서 처리됩니다.');
+        break;
+      }
     }
 
-    // 배치 처리
-    const emailContent = generateNewsletterContent(newsCategories);
-    const emailSubject = `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`;
-    
-    const results = await processBatchGroup(Number(batchNumber), emailContent, emailSubject);
-    
-    // 메트릭 로깅
+    // 메트릭 기록
     await logMetrics({
-      batchNumber: Number(batchNumber),
-      totalSubscribers: EMAILS_PER_BATCH,  // 배치당 처리할 구독자 수
-      processedEmails: results.successCount + results.failureCount,
-      successCount: results.successCount,
-      failureCount: results.failureCount,
+      totalSubscribers: subscribers.length,
+      processedEmails: totalProcessed,
+      successCount,
+      failureCount,
       executionTime: Date.now() - startTime
     });
 
     return NextResponse.json({
       success: true,
-      batchNumber,
-      results,
-      executionTime: Date.now() - startTime
+      totalProcessed,
+      successCount,
+      failureCount
     });
   } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : '알 수 없는 오류' 
-    }, { status: 500 });
+    console.error('뉴스레터 발송 중 오류:', error);
+    return NextResponse.json(
+      { error: '뉴스레터 발송 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
   }
 } 

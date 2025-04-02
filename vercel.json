@@ -5,24 +5,8 @@
       "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/cron/send-news?batch=1",
-      "schedule": "5 9 * * *"
-    },
-    {
-      "path": "/api/cron/send-news?batch=2",
-      "schedule": "10 9 * * *"
-    },
-    {
-      "path": "/api/cron/send-news?batch=3",
-      "schedule": "15 9 * * *"
-    },
-    {
-      "path": "/api/cron/send-news?batch=4",
-      "schedule": "20 9 * * *"
-    },
-    {
-      "path": "/api/cron/send-news?batch=5",
-      "schedule": "25 9 * * *"
+      "path": "/api/monitor",
+      "schedule": "0 * * * *"
     }
   ],
   "buildCommand": "prisma generate && next build",
