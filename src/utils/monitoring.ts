@@ -1,7 +1,21 @@
 import { PrismaClient } from '@prisma/client';
 import { sendEmail } from './hiworks/email';
 
-const prisma = new PrismaClient();
+// PrismaClient 싱글톤 처리
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient();
+} else {
+  if (!global.prisma) {
+    global.prisma = new PrismaClient();
+  }
+  prisma = global.prisma;
+}
 
 export interface NewsletterMetrics {
   batchNumber?: number;
@@ -46,19 +60,25 @@ export async function logMetrics(metrics: NewsletterMetrics) {
     });
     
     // 성공률이 80% 미만이면 관리자에게 알림
-    const successRate = (metrics.successCount / metrics.processedEmails) * 100;
-    if (successRate < 80) {
-      await notifyAdmin(`
-        뉴스레터 발송 성공률 저조
-        - 총 발송: ${metrics.processedEmails}
-        - 성공: ${metrics.successCount}
-        - 실패: ${metrics.failureCount}
-        - 성공률: ${successRate.toFixed(1)}%
-      `);
+    if (metrics.processedEmails > 0) {  // 0으로 나누기 방지
+      const successRate = (metrics.successCount / metrics.processedEmails) * 100;
+      if (successRate < 80) {
+        await notifyAdmin(`
+          뉴스레터 발송 성공률 저조
+          - 총 발송: ${metrics.processedEmails}
+          - 성공: ${metrics.successCount}
+          - 실패: ${metrics.failureCount}
+          - 성공률: ${successRate.toFixed(1)}%
+        `);
+      }
     }
   } catch (error) {
-    console.error('Failed to log metrics:', error);
-    await notifyAdmin(`메트릭 로깅 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    console.error('메트릭 로깅 실패:', error);
+    if (error instanceof Error) {
+      await notifyAdmin(`메트릭 로깅 실패: ${error.message}`);
+    } else {
+      await notifyAdmin('메트릭 로깅 중 알 수 없는 오류가 발생했습니다.');
+    }
   }
 }
 
@@ -85,11 +105,21 @@ export async function checkApiLimits() {
         - 한도: ${API_DAILY_LIMIT}
         - 사용률: ${((totalApiCalls / API_DAILY_LIMIT) * 100).toFixed(1)}%
       `);
+      
+      if (totalApiCalls >= API_DAILY_LIMIT) {
+        console.error('API 일일 한도 초과');
+        return false;
+      }
     }
     
-    return totalApiCalls < API_DAILY_LIMIT;
+    return true;
   } catch (error) {
     console.error('API 한도 확인 실패:', error);
+    if (error instanceof Error) {
+      await notifyAdmin(`API 한도 확인 실패: ${error.message}`);
+    } else {
+      await notifyAdmin('API 한도 확인 중 알 수 없는 오류가 발생했습니다.');
+    }
     return false;
   }
 } 
