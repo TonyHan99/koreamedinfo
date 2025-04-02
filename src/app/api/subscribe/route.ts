@@ -1,21 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
-
-// PrismaClient 싱글톤 처리
-declare global {
-  var prisma: PrismaClient | undefined;
-}
-
-let prisma: PrismaClient;
-
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient();
-  }
-  prisma = global.prisma;
-}
+import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {

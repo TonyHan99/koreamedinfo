@@ -1,27 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NewsSubscriber, Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { sendEmail } from '@/utils/hiworks/email';
 import { notifyAdmin } from '@/utils/monitoring';
-
-// PrismaClient 싱글톤 처리
-declare global {
-  var prisma: PrismaClient | undefined;
-}
-
-const prisma = global.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
-
-// 타입 정의
-interface NewsSubscriber {
-  id: string;
-  email: string;
-  name: string;
-  phone: string;
-  company: string;
-  createdAt: Date;
-  updatedAt: Date;
-  lastSentAt?: Date;
-}
 
 interface EmailResult {
   success: boolean;
@@ -120,12 +101,14 @@ async function sendEmailWithRetry(to: string, subject: string, content: string, 
 // 실패한 이메일 큐잉 함수
 async function queueFailedEmail(to: string, subject: string, content: string) {
   try {
-    await prisma.failedEmail.create({
+    await prisma.emailQueue.create({
       data: {
         email: to,
-        subject,
         content,
-        error: '이메일 발송 실패'
+        status: 'failed',
+        error: '이메일 발송 실패',
+        scheduledFor: new Date(),
+        retryCount: 0
       }
     });
     console.log(`실패한 이메일 큐잉 완료: ${to}`);
@@ -161,14 +144,15 @@ async function sendNewsletterToAllSubscribers() {
     
     const subscribers = await prisma.newsSubscriber.findMany({
       where: {
-        lastSentAt: {
-          lt: today
-        }
+        OR: [
+          { lastSentAt: null } as Prisma.NewsSubscriberWhereInput,
+          { lastSentAt: { lt: today } } as Prisma.NewsSubscriberWhereInput
+        ]
       },
       orderBy: {
         createdAt: 'asc'
       }
-    }) as NewsSubscriber[];
+    });
 
     if (subscribers.length === 0) {
       console.log('오늘 발송할 구독자가 없습니다.');
@@ -221,7 +205,10 @@ async function sendNewsletterToAllSubscribers() {
               if (result.success) {
                 await prisma.newsSubscriber.update({
                   where: { id: subscriber.id },
-                  data: { lastSentAt: new Date() }
+                  data: {
+                    lastSentAt: new Date(),
+                    updatedAt: new Date()
+                  } as Prisma.NewsSubscriberUpdateInput
                 });
                 totalProcessed++;
                 return { success: true, email: subscriber.email };

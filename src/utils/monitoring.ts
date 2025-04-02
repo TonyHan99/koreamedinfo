@@ -1,21 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { sendEmail } from './hiworks/email';
-
-// PrismaClient 싱글톤 처리
-declare global {
-  var prisma: PrismaClient | undefined;
-}
-
-let prisma: PrismaClient;
-
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient();
-  }
-  prisma = global.prisma;
-}
 
 export interface NewsletterMetrics {
   batchNumber?: number;

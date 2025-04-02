@@ -1,17 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
-
-// PrismaClient 싱글톤 처리
-let prisma: PrismaClient;
-
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
-  if (!(global as any).prisma) {
-    (global as any).prisma = new PrismaClient();
-  }
-  prisma = (global as any).prisma;
-}
+import prisma from '@/lib/prisma';
 
 // 모니터링 API 엔드포인트 생성
 export async function GET(request: Request) {

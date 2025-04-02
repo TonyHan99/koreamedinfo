@@ -201,3 +201,14 @@ model EmailBatch {
   @@index([status, scheduledFor])
   @@index([batchNumber])
 }
+
+model FailedEmail {
+  id        String   @id @default(cuid())
+  email     String
+  subject   String
+  content   String   @db.Text
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
