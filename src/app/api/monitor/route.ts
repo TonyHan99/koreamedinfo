@@ -22,7 +22,6 @@ export async function GET(request: Request) {
       select: {
         email: true,
         status: true,
-        error: true,
         provider: true,
         sentAt: true
       }
