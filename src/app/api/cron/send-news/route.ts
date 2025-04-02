@@ -1,28 +1,62 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient as PrismaClientType } from '.prisma/client';
 import axios from 'axios';
 import { sendEmail } from '@/utils/hiworks/email';
+import { notifyAdmin, logMetrics, checkApiLimits } from '@/utils/monitoring';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5분으로 설정
 
-const prisma = new PrismaClient();
+// 상수 정의
+const BATCH_SIZE = 3;           // 한 번에 3명씩
+const EMAIL_DELAY = 1000;       // 이메일 간 1초 대기
+const BATCH_DELAY = 3000;       // 배치 간 3초 대기
+const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
+const EMAILS_PER_BATCH = 15;    // 한 배치당 15명
+const MAX_RETRIES = 5;          // 재시도 횟수
+const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000];  // 점진적 대기 시간
+
+// Hiworks API 설정
+const HIWORKS_CONFIG = {
+  API_URL: process.env.HIWORKS_API_URL || 'https://api.hiworks.com/office',
+  API_TOKEN: process.env.HIWORKS_API_TOKEN,
+  USER_ID: process.env.HIWORKS_USER_ID || 'admin'
+};
+
+// 검색 키워드 카테고리 확장
+const SEARCH_KEYWORDS = {
+  '주요 의료기기 기업': [
+    '메드트로닉', 'GE헬스케어', '필립스', '지멘스헬시니어스', 
+    '존슨앤존슨', '스트라이커', '올림푸스'
+  ],
+  '심장/혈관 분야': [
+    '관상동맥', '스텐트 +혈관', '심장수술', '혈관중재시술',
+    '대동맥', '심장판막', '부정맥'
+  ],
+  '의료정책': ['비급여', '신의료기술', '리베이트&병원', '의료수가', '건강보험'],
+  '규제/인증': ['의료기기&허가', 'FDA&의료기기', 'CE&의료기기', '의료기기&인증'],
+  '시장 동향': [
+    '다국적&의료기기', '제약&의료기기', '의료기기&마케팅',
+    '의료기기&시장', '의료기기&수출', '의료기기&특허'
+  ],
+  '의료 AI/로봇': [
+    '"의료AI"&병원', '수술로봇', '의료&인공지능',
+    '디지털치료제', '원격의료', '디지털헬스케어'
+  ],
+  '전문병원': [
+    '척추병원', '정형외과', '흉부외과', 
+    '"성형외과"&수술', '"동물병원"&수술',
+    '신경외과', '심장병원'
+  ],
+  '수술 기술': ['최소침습', '로봇수술', '내시경수술', '중재시술'],
+  '의료계 동향': ['의사파업&병원', '의료사고', '의료분쟁', '의료정책']
+};
+
+const prisma = new PrismaClientType();
 
 // 네이버 API 설정
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
-
-// 검색 키워드 카테고리
-const SEARCH_KEYWORDS = {
-  '주요 의료기기 기업': ['메드트로닉'],
-  '심장/혈관 분야': ['관상동맥', '스텐트 +혈관'],
-  '의료정책': ['비급여', '신의료기술', '리베이트&병원'],
-  '규제/인증': ['의료기기&허가'],
-  '시장 동향': ['다국적&의료기기', '제약&의료기기', '의료기기&마케팅'],
-  '의료 AI/로봇': ['"의료AI"&병원', '수술로봇'],
-  '전문병원': ['척추병원', '정형외과', '흉부외과', '"성형외과"&수술', '"동물병원"&수술'],
-  '수술 기술': ['최소침습'],
-  '의료계 동향': ['의사파업&병원']
-};
 
 // 24시간 이내 뉴스인지 확인
 function isWithin24Hours(pubDate: string): boolean {
@@ -81,7 +115,11 @@ interface ApiError extends Error {
 interface PendingEmail {
   id: string;
   email: string;
+  content: string;
   status: string;
+  error: string | null;
+  retryCount: number;
+  createdAt: Date;
   scheduledFor: Date;
 }
 
@@ -98,10 +136,12 @@ interface NewsCategory {
   articles: NewsArticle[];
 }
 
-async function getNewsForKeyword(keyword: string): Promise<any[]> {
+async function getNewsForKeyword(keyword: string, retryCount = 0): Promise<any[]> {
   try {
-    // API 호출 전 대기 시간 감소
-    await delay(500);
+    // API 호출 전 대기 시간을 키워드별로 분산
+    const baseDelay = 1000; // 기본 1초
+    const randomDelay = Math.floor(Math.random() * 1000); // 0-1초 추가
+    await delay(baseDelay + randomDelay);
 
     const response = await axios.get(
       'https://openapi.naver.com/v1/search/news.json',
@@ -129,20 +169,31 @@ async function getNewsForKeyword(keyword: string): Promise<any[]> {
     return recentNews;
   } catch (error) {
     const apiError = error as ApiError;
+    const maxRetries = 3;
 
     if (apiError.response?.status === 429) {
-      console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. 2초 후 재시도...`);
-      await delay(2000);
-      return getNewsForKeyword(keyword);
+      if (retryCount >= maxRetries) {
+        console.log(`키워드 "${keyword}" 검색 최대 재시도 횟수 초과`);
+        return [];
+      }
+      const retryDelay = Math.pow(2, retryCount + 1) * 1000; // 지수 백오프: 2초, 4초, 8초
+      console.log(`키워드 "${keyword}" 검색 중 API 제한 도달. ${retryDelay/1000}초 후 재시도... (${retryCount + 1}/${maxRetries})`);
+      await delay(retryDelay);
+      return getNewsForKeyword(keyword, retryCount + 1);
     }
 
     const errorMessage = apiError.response?.data?.errorMessage || apiError.message;
     console.error(`키워드 "${keyword}" 뉴스 가져오기 실패:`, errorMessage);
 
     if (apiError.code === 'ECONNRESET' || apiError.code === 'ETIMEDOUT') {
-      console.log(`네트워크 오류 발생. 2초 후 재시도...`);
-      await delay(2000);
-      return getNewsForKeyword(keyword);
+      if (retryCount >= maxRetries) {
+        console.log(`키워드 "${keyword}" 네트워크 오류 최대 재시도 횟수 초과`);
+        return [];
+      }
+      const retryDelay = Math.pow(2, retryCount + 1) * 1000;
+      console.log(`네트워크 오류 발생. ${retryDelay/1000}초 후 재시도... (${retryCount + 1}/${maxRetries})`);
+      await delay(retryDelay);
+      return getNewsForKeyword(keyword, retryCount + 1);
     }
 
     return [];
@@ -154,18 +205,17 @@ async function getAllNewsArticles() {
   const seenUrls = new Set();
   const processedArticles: any[] = [];
 
-  // 병렬로 모든 키워드에 대한 뉴스를 가져옴
-  const categoryPromises = Object.entries(SEARCH_KEYWORDS).map(async ([category, keywords]) => {
-    const keywordPromises = keywords.map(keyword => getNewsForKeyword(keyword));
-    const keywordResults = await Promise.all(keywordPromises);
-    
+  // 카테고리별로 순차 처리로 변경
+  for (const [category, keywords] of Object.entries(SEARCH_KEYWORDS)) {
+    console.log(`카테고리 '${category}' 처리 중...`);
     const categoryArticles: any[] = [];
     
-    for (const articles of keywordResults) {
+    // 키워드별 순차 처리
+    for (const keyword of keywords) {
+      const articles = await getNewsForKeyword(keyword);
+      
       for (const article of articles) {
-        if (seenUrls.has(article.link)) {
-          continue;
-        }
+        if (seenUrls.has(article.link)) continue;
 
         let isDuplicate = false;
         for (const processedArticle of processedArticles) {
@@ -192,167 +242,131 @@ async function getAllNewsArticles() {
 
     if (categoryArticles.length > 0) {
       categoryArticles.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
-      return {
+      allArticles.push({
         category,
         articles: categoryArticles
-      };
-    }
-    return null;
-  });
-
-  const results = await Promise.all(categoryPromises);
-  return results.filter(result => result !== null);
-}
-
-// 상수 정의
-const BATCH_SIZE = 3;  // 한 번에 3명씩
-const EMAIL_DELAY = 1000;  // 이메일 간 1초 대기
-const BATCH_DELAY = 3000;  // 배치 간 3초 대기
-const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
-const MAX_EMAILS_PER_RUN = 50;    // 한 번 실행당 최대 50명으로 증가
-
-async function sendNewsletterToAllSubscribers(newsCategories: any[]) {
-  try {
-    // 전체 구독자 수 먼저 확인
-    const totalSubscriberCount = await prisma.newsSubscriber.count();
-    
-    // 처리되지 않은 이전 큐 항목 확인
-    const pendingEmails = await prisma.emailQueue.findMany({
-      where: {
-        status: 'pending',
-        scheduledFor: {
-          lte: new Date()
-        }
-      }
-    });
-
-    // 새로운 구독자 목록 가져오기
-    const subscribers = await prisma.newsSubscriber.findMany({
-      where: {
-        email: {
-          notIn: pendingEmails.map((pe: PendingEmail) => pe.email)
-        }
-      }
-    });
-
-    console.log(`
-      전체 구독자 수: ${totalSubscriberCount}
-      이번 실행에서 처리할 구독자 수: ${subscribers.length}
-      대기 중인 이메일: ${pendingEmails.length}
-      배치 크기: ${BATCH_SIZE}
-      예상 배치 수: ${Math.ceil(subscribers.length / BATCH_SIZE)}
-    `);
-
-    let successCount = 0;
-    let failCount = 0;
-    const startTime = Date.now();
-
-    // HTML 컨텐츠 생성
-    const htmlContent = generateNewsletterContent(newsCategories);
-
-    // 이전 실패한 이메일 먼저 처리
-    for (const pending of pendingEmails) {
-      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-        console.log('최대 실행 시간 초과, 나머지는 다음 배치로 연기');
-        break;
-      }
-
-      const result = await sendEmailWithRetry(pending.email, htmlContent);
-      
-      if (result.success) {
-        await prisma.emailQueue.delete({ where: { id: pending.id } });
-        await logEmailSuccess(pending.email);
-        successCount++;
-        await delay(EMAIL_DELAY);
-      } else {
-        await updateFailedEmailQueue(pending.id, result.error || '알 수 없는 오류');
-        failCount++;
-      }
-    }
-
-    // 새로운 구독자들에게 이메일 발송
-    for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
-      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-        // 남은 구독자들은 큐에 추가
-        const remainingSubscribers = subscribers.slice(i);
-        await queueRemainingEmails(remainingSubscribers, htmlContent);
-        console.log(`${remainingSubscribers.length}명의 구독자를 다음 배치로 연기`);
-        break;
-      }
-
-      const batch = subscribers.slice(i, i + BATCH_SIZE);
-      console.log(`배치 ${Math.floor(i / BATCH_SIZE) + 1} 처리 중: ${batch.length}명`);
-
-      for (const subscriber of batch) {
-        const result = await sendEmailWithRetry(subscriber.email, htmlContent);
-        
-        if (result.success) {
-          await logEmailSuccess(subscriber.email);
-          successCount++;
-          await delay(EMAIL_DELAY);
-        } else {
-          await queueFailedEmail(subscriber.email, htmlContent, result.error || '알 수 없는 오류');
-          failCount++;
-        }
-      }
-
-      // 배치 간 대기
-      if (i + BATCH_SIZE < subscribers.length) {
-        await delay(BATCH_DELAY);
-      }
-    }
-
-    return { successCount, failCount };
-  } catch (error) {
-    console.error('뉴스레터 발송 중 오류 발생:', error);
-    throw error;
-  }
-}
-
-async function sendEmailWithRetry(email: string, content: string, maxRetries = 3) {
-  let retryCount = 0;
-  
-  while (retryCount < maxRetries) {
-    try {
-      const result = await sendEmail({
-        to: email,
-        subject: `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`,
-        content: content,
-        saveSentMail: true
       });
-
-      if (result.success) {
-        return { success: true };
-      }
-
-      retryCount++;
-      await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
-    } catch (error: unknown) {
-      if (retryCount === maxRetries - 1) {
-        if (error instanceof Error) {
-          return { success: false, error: error.message };
-        } else {
-          return { success: false, error: 'Unknown error occurred' };
-        }
-      }
-      retryCount++;
-      await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
     }
   }
 
-  return { success: false, error: '최대 재시도 횟수 초과' };
+  return allArticles.filter(category => category !== null);
 }
 
-async function queueRemainingEmails(subscribers: any[], content: string) {
-  const queueData = subscribers.map(sub => ({
-    email: sub.email,
-    content: content,
-    status: 'pending',
-    retryCount: 0,
-    scheduledFor: new Date(Date.now() + 300000) // 5분 후
-  }));
+// 뉴스레터 HTML 생성 함수
+function generateNewsletterContent(newsCategories: NewsCategory[]): string {
+  let html = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #333;">의료기기 뉴스레터</h1>
+      <p style="color: #666;">${new Date().toLocaleDateString('ko-KR')} 뉴스 모음</p>
+  `;
 
-  await prisma.emailQueue.createMany({ data: queueData });
+  for (const category of newsCategories) {
+    if (category.articles.length > 0) {
+      html += `
+        <div style="margin-top: 30px;">
+          <h2 style="color: #444; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+            ${category.category}
+          </h2>
+          <ul style="list-style-type: none; padding: 0;">
+      `;
+
+      for (const article of category.articles) {
+        const pubDate = new Date(article.pubDate).toLocaleDateString('ko-KR');
+        html += `
+          <li style="margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 5px;">
+            <a href="${article.link}" style="color: #2b7bb9; text-decoration: none; font-weight: bold;">
+              ${article.title}
+            </a>
+            <p style="color: #666; margin: 5px 0;">${article.description}</p>
+            <small style="color: #999;">발행일: ${pubDate}</small>
+          </li>
+        `;
+      }
+
+      html += `
+          </ul>
+        </div>
+      `;
+    }
+  }
+
+  html += `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999;">
+        <p>본 뉴스레터는 자동으로 수집된 정보를 제공합니다.</p>
+        <p>구독 해지를 원하시면 회신 부탁드립니다.</p>
+      </div>
+    </div>
+  `;
+
+  return html;
+}
+
+async function queueFailedEmail(email: string, subject: string, content: string) {
+  try {
+    await prisma.emailQueue.create({
+      data: {
+        email,
+        content,
+        status: 'pending',
+        retryCount: 0,
+        scheduledFor: new Date(Date.now() + 1000 * 60 * 60), // 1시간 후 재시도
+        error: '이메일 전송 실패'
+      }
+    });
+  } catch (error) {
+    console.error('Failed to queue email:', error);
+  }
+}
+
+async function sendEmailWithRetry(to: string, subject: string, content: string, attempt = 0) {
+  try {
+    if (attempt >= MAX_RETRIES) {
+      return { success: false, error: '최대 재시도 횟수 초과' };
+    }
+
+    const result = await sendEmail({
+      to,
+      subject,
+      content,
+      saveSentMail: true
+    });
+    
+    if (result.success) {
+      await logEmailSuccess(to);
+      return { success: true };
+    }
+    
+    // 에러 발생 시 재시도
+    await delay(RETRY_DELAYS[attempt]);
+    return sendEmailWithRetry(to, subject, content, attempt + 1);
+  } catch (error: unknown) {
+    // 에러 유형별 처리
+    if ((error as ApiError).response?.status === 401) {
+      await notifyAdmin('Hiworks API 인증 오류');
+      return { success: false, error: 'API 인증 오류' };
+    }
+    
+    if ((error as ApiError).response?.status === 429) {
+      await notifyAdmin('Hiworks API 호출 한도 도달');
+      return { success: false, error: 'API 호출 한도 초과' };
+    }
+
+    console.error(`이메일 발송 실패 (${attempt + 1}/${MAX_RETRIES}):`, error);
+    
+    if (attempt < MAX_RETRIES - 1) {
+      await delay(RETRY_DELAYS[attempt]);
+      return sendEmailWithRetry(to, subject, content, attempt + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+interface EmailLog {
+  status: string;
 }
 
 async function logEmailSuccess(email: string) {
@@ -373,7 +387,7 @@ async function logEmailSuccess(email: string) {
       }
     });
 
-    const successRate = (logs.filter(log => log.status === 'success').length / logs.length) * 100;
+    const successRate = (logs.filter((log: EmailLog) => log.status === 'success').length / logs.length) * 100;
     
     if (successRate < 80 && process.env.ADMIN_EMAIL) {
       await sendEmail({
@@ -387,142 +401,199 @@ async function logEmailSuccess(email: string) {
   }
 }
 
-async function queueFailedEmail(email: string, content: string, error: string) {
-  try {
-    await Promise.all([
-      prisma.emailQueue.create({
-        data: {
-          email,
-          content,
-          status: 'failed',
-          error,
-          retryCount: 0,
-          scheduledFor: new Date(Date.now() + 900000) // 15분 후
-        }
-      }),
-      prisma.emailLog.create({
-        data: {
-          email,
-          status: 'failed',
-          error,
-          provider: email.includes('@gmail.com') ? 'gmail' : 'other'
-        }
-      })
-    ]);
-  } catch (error) {
-    console.error(`Failed to queue email for ${email}:`, error);
-    if (process.env.ADMIN_EMAIL) {
-      await sendEmail({
-        to: process.env.ADMIN_EMAIL,
-        subject: '뉴스레터 발송 큐잉 실패',
-        content: `이메일: ${email}\n에러: ${error}`
-      });
-    }
+// Hiworks API 설정 확인 함수 추가
+function checkHiworksConfig(): boolean {
+  if (!HIWORKS_CONFIG.API_URL || !HIWORKS_CONFIG.API_TOKEN || !HIWORKS_CONFIG.USER_ID) {
+    console.error('Hiworks API 설정이 누락되었습니다.');
+    return false;
   }
+  return true;
 }
 
-async function updateFailedEmailQueue(id: string, error: string) {
-  await prisma.emailQueue.update({
-    where: { id },
-    data: {
-      retryCount: { increment: 1 },
-      error,
-      scheduledFor: new Date(Date.now() + 900000) // 15분 후
+async function createSubscriberGroups(newsCategories: any[]) {
+  const emailContent = generateNewsletterContent(newsCategories);
+  const emailSubject = `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`;
+  
+  const totalSubscribers = await prisma.newsSubscriber.count();
+  const totalGroups = Math.ceil(totalSubscribers / EMAILS_PER_BATCH);
+  
+  // 이전 배치 정리
+  await prisma.emailBatch.deleteMany({
+    where: {
+      status: {
+        in: ['pending', 'processing']
+      }
     }
   });
-}
-
-function generateNewsletterContent(newsCategories: NewsCategory[]): string {
-  let htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
-      <h1 style="color: #333; text-align: center;">의료기기 뉴스레터</h1>
-      <p style="color: #666; text-align: center;">최근 24시간 동안의 주요 의료기기 뉴스입니다.</p>
-      <div style="text-align: center; margin: 20px 0;">
-        <a href="https://koreamedinfo.com/industry-news" 
-           style="display: inline-block; 
-                  background-color: #4F46E5; 
-                  color: white; 
-                  text-decoration: none;
-                  padding: 10px 20px;
-                  border-radius: 5px;
-                  font-size: 14px;">
-          ✉️ 뉴스레터 구독 신청하기
-        </a>
-      </div>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-  `;
-
-  for (const categoryNews of newsCategories) {
-    if (categoryNews.articles && categoryNews.articles.length > 0) {
-      htmlContent += `
-        <div style="margin: 20px 0;">
-          <h2 style="color: #2c5282; border-bottom: 2px solid #2c5282; padding-bottom: 5px;">
-            ${categoryNews.category} (${categoryNews.articles.length}건)
-          </h2>
-          <ul style="list-style-type: none; padding: 0;">
-      `;
-
-      for (const article of categoryNews.articles) {
-        const cleanTitle = cleanText(article.title);
-        const cleanDescription = cleanText(article.description);
-
-        htmlContent += `
-          <li style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-            <a href="${article.link}" 
-               style="color: #2c5282; 
-                      text-decoration: none; 
-                      font-weight: bold;
-                      font-size: 16px;">
-              ${cleanTitle}
-            </a>
-            <p style="color: #4a5568; margin: 8px 0; font-size: 14px;">
-              ${cleanDescription}
-            </p>
-            <div style="color: #718096; font-size: 12px;">
-              ${new Date(article.pubDate).toLocaleString('ko-KR')}
-            </div>
-          </li>
-        `;
+  
+  // 새 배치 생성
+  for (let i = 0; i < totalGroups; i++) {
+    await prisma.emailBatch.create({
+      data: {
+        batchNumber: i + 1,
+        totalBatches: totalGroups,
+        status: 'pending',
+        scheduledFor: new Date(Date.now() + i * 5 * 60 * 1000) // 5분 간격
       }
-
-      htmlContent += `
-          </ul>
-        </div>
-      `;
-    }
+    });
   }
 
-  htmlContent += `
-      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-      <div style="text-align: center; color: #666; font-size: 12px;">
-        <p>본 뉴스레터는 자동으로 생성되었습니다.</p>
-        <p>구독 해지를 원하시면 관리자에게 문의해주세요.</p>
-      </div>
-    </div>
-  `;
-
-  return htmlContent;
+  return {
+    totalGroups,
+    totalSubscribers,
+    emailContent,
+    emailSubject
+  };
 }
 
-// Vercel API Route handler
-export async function GET(request: Request) {
+async function processBatchGroup(batchNumber: number, emailContent: string, emailSubject: string) {
+  const batch = await prisma.emailBatch.findFirst({
+    where: { 
+      batchNumber,
+      status: 'pending'
+    }
+  });
+
+  if (!batch) {
+    throw new Error(`배치 ${batchNumber}를 찾을 수 없거나 이미 처리되었습니다.`);
+  }
+
   try {
-    const newsCategories = await getAllNewsArticles();
-    const result = await sendNewsletterToAllSubscribers(newsCategories);
-    
-    return NextResponse.json(
-      { 
-        message: `처리 완료: 성공 ${result.successCount}, 실패 ${result.failCount}`,
-        success: true,
-        result 
-      },
-      { status: 200 }
-    );
+    // 배치 상태 업데이트
+    await prisma.emailBatch.update({
+      where: { id: batch.id },
+      data: { 
+        status: 'processing',
+        startedAt: new Date()
+      }
+    });
+
+    // 구독자 가져오기
+    const subscribers = await prisma.newsSubscriber.findMany({
+      skip: (batchNumber - 1) * EMAILS_PER_BATCH,
+      take: EMAILS_PER_BATCH
+    });
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // 이메일 발송
+    for (const subscriber of subscribers) {
+      const result = await sendEmailWithRetry(subscriber.email, emailSubject, emailContent);
+      
+      if (result.success) {
+        successCount++;
+      } else {
+        failureCount++;
+        await queueFailedEmail(subscriber.email, emailSubject, emailContent);
+      }
+
+      await delay(EMAIL_DELAY);
+    }
+
+    // 배치 완료 상태 업데이트
+    await prisma.emailBatch.update({
+      where: { id: batch.id },
+      data: {
+        status: 'completed',
+        completedAt: new Date(),
+        successCount,
+        failureCount
+      }
+    });
+
+    return { successCount, failureCount };
   } catch (error) {
-    console.error('뉴스레터 발송 실패:', error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : '알 수 없는 오류' },
-      { status: 500 }
-    );
+    // 오류 발생 시 배치 상태 업데이트
+    await prisma.emailBatch.update({
+      where: { id: batch.id },
+      data: {
+        status: 'failed',
+        completedAt: new Date(),
+        error: error instanceof Error ? error.message : '알 수 없는 오류'
+      }
+    });
+
+    throw error;
+  }
+}
+
+export async function GET(req: Request) {
+  const startTime = Date.now();
+  
+  try {
+    // API 설정 확인
+    if (!checkHiworksConfig()) {
+      return NextResponse.json(
+        { error: 'Hiworks API 설정이 올바르지 않습니다.' },
+        { status: 500 }
+      );
+    }
+
+    // API 한도 확인
+    if (!await checkApiLimits()) {
+      return NextResponse.json(
+        { error: 'API 일일 한도에 도달했습니다.' },
+        { status: 429 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const batchNumber = searchParams.get('batch');
+
+    // 뉴스 수집
+    const newsCategories = await getAllNewsArticles();
+    if (!newsCategories.length) {
+      await notifyAdmin('수집된 뉴스가 없습니다.');
+      return NextResponse.json(
+        { error: '수집된 뉴스가 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    if (!batchNumber) {
+      // 초기 실행: 배치 그룹 생성
+      const result = await createSubscriberGroups(newsCategories);
+      await notifyAdmin(`뉴스레터 발송 시작
+        - 총 구독자: ${result.totalSubscribers}명
+        - 총 배치 수: ${result.totalGroups}개
+        - 배치당 발송 수: ${EMAILS_PER_BATCH}개
+      `);
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: '배치 작업이 생성되었습니다.',
+        ...result
+      });
+    }
+
+    // 배치 처리
+    const emailContent = generateNewsletterContent(newsCategories);
+    const emailSubject = `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`;
+    
+    const results = await processBatchGroup(Number(batchNumber), emailContent, emailSubject);
+    
+    // 메트릭 로깅
+    await logMetrics({
+      batchNumber: Number(batchNumber),
+      totalSubscribers: EMAILS_PER_BATCH,  // 배치당 처리할 구독자 수
+      processedEmails: results.successCount + results.failureCount,
+      successCount: results.successCount,
+      failureCount: results.failureCount,
+      executionTime: Date.now() - startTime
+    });
+
+    return NextResponse.json({
+      success: true,
+      batchNumber,
+      results,
+      executionTime: Date.now() - startTime
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : '알 수 없는 오류' 
+    }, { status: 500 });
   }
 } 
