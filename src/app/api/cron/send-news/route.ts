@@ -554,7 +554,44 @@ export async function GET(request: Request) {
     }
 
     const startTime = Date.now();
-    const subscribers = await prisma.newsSubscriber.findMany();
+
+    // 오늘 이메일을 받지 않은 구독자 조회
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const processedEmails = await prisma.emailLog.findMany({
+      where: {
+        createdAt: {
+          gte: today
+        }
+      },
+      select: {
+        email: true
+      }
+    });
+
+    const processedEmailSet = new Set(processedEmails.map(log => log.email));
+
+    const subscribers = await prisma.newsSubscriber.findMany({
+      where: {
+        email: {
+          notIn: Array.from(processedEmailSet)
+        }
+      }
+    });
+
+    if (subscribers.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: '오늘 모든 구독자에게 이메일이 발송되었습니다.',
+        totalProcessed: processedEmailSet.size
+      });
+    }
+
+    // 뉴스 수집
+    const newsCategories = await getAllNewsArticles();
+    const emailContent = generateNewsletterContent(newsCategories);
+    const emailSubject = `[의료기기 뉴스레터] ${new Date().toLocaleDateString('ko-KR')} 뉴스 모음`;
     
     // 전체 구독자를 15명씩 배치로 나누기
     const batches = [];
@@ -590,8 +627,8 @@ export async function GET(request: Request) {
           try {
             await sendEmail({
               to: subscriber.email,
-              subject: '[의료기기 뉴스레터] 오늘의 업계 소식',
-              content: '뉴스레터 내용...' // 실제 뉴스레터 내용으로 대체
+              subject: emailSubject,
+              content: emailContent
             });
             
             await prisma.emailLog.create({
@@ -614,6 +651,9 @@ export async function GET(request: Request) {
                 provider: subscriber.email.includes('@gmail.com') ? 'gmail' : 'other'
               }
             });
+
+            // 실패한 이메일은 큐에 추가
+            await queueFailedEmail(subscriber.email, emailSubject, emailContent);
           }
           
           totalProcessed++;
@@ -637,25 +677,29 @@ export async function GET(request: Request) {
 
       // 실행 시간 체크 및 필요시 중단
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
-        console.log('최대 실행 시간 도달, 나머지 배치는 다음 실행에서 처리됩니다.');
+        console.log(`최대 실행 시간 도달, 다음 실행에서 ${subscribers.length - totalProcessed}명 처리 예정`);
         break;
       }
     }
 
     // 메트릭 기록
     await logMetrics({
-      totalSubscribers: subscribers.length,
+      totalSubscribers: subscribers.length + processedEmailSet.size,
       processedEmails: totalProcessed,
       successCount,
       failureCount,
       executionTime: Date.now() - startTime
     });
 
+    const remainingCount = subscribers.length - totalProcessed;
+    
     return NextResponse.json({
       success: true,
       totalProcessed,
       successCount,
-      failureCount
+      failureCount,
+      remainingCount,
+      totalSubscribers: subscribers.length + processedEmailSet.size
     });
   } catch (error) {
     console.error('뉴스레터 발송 중 오류:', error);
