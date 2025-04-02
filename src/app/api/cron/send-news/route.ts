@@ -14,7 +14,6 @@ interface EmailResult {
 const BATCH_SIZE = 100;          // 한 번에 100명씩
 const BATCH_DELAY = 2000;        // 배치 간 2초 대기
 const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
-const MAX_EMAILS_PER_RUN = 100;  // 한 번 실행에 100명
 const MAX_RETRIES = 3;          // 재시도 횟수
 const RETRY_DELAYS = [2000, 5000, 10000];  // 점진적 대기 시간 조정
 
@@ -182,12 +181,6 @@ async function sendNewsletterToAllSubscribers() {
       // 실행 시간 체크
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         console.log('최대 실행 시간 도달, 다음 실행에서 계속');
-        break;
-      }
-
-      // 최대 처리 수 체크
-      if (totalProcessed >= MAX_EMAILS_PER_RUN) {
-        console.log('최대 처리 수 도달, 다음 실행에서 계속');
         break;
       }
 
