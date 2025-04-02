@@ -1,9 +1,29 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { sendEmail } from '@/lib/email';
+import { PrismaClient } from '.prisma/client';
+import { sendEmail } from '@/utils/hiworks/email';
 import { notifyAdmin } from '@/utils/monitoring';
 
-const prisma = new PrismaClient();
+// PrismaClient 싱글톤 처리
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+const prisma = global.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+
+// 타입 정의
+interface Subscriber {
+  id: string;
+  email: string;
+  createdAt: Date;
+  lastSentAt?: Date;
+}
+
+interface EmailResult {
+  success: boolean;
+  email: string;
+  error?: string;
+}
 
 // 상수 정의
 const BATCH_SIZE = 100;          // 한 번에 100명씩
@@ -144,7 +164,7 @@ async function sendNewsletterToAllSubscribers() {
       orderBy: {
         createdAt: 'asc'
       }
-    });
+    }) as Subscriber[];
 
     if (subscribers.length === 0) {
       console.log('오늘 발송할 구독자가 없습니다.');
@@ -186,7 +206,7 @@ async function sendNewsletterToAllSubscribers() {
       try {
         // 배치 내 모든 이메일 동시 처리
         const results = await Promise.all(
-          batch.map(async (subscriber) => {
+          batch.map(async (subscriber: Subscriber) => {
             try {
               const result = await sendEmailWithRetry(
                 subscriber.email,
@@ -215,8 +235,8 @@ async function sendNewsletterToAllSubscribers() {
         );
 
         // 성공/실패 통계
-        const successCount = results.filter(r => r.success).length;
-        const failureCount = results.filter(r => !r.success).length;
+        const successCount = results.filter((r: EmailResult) => r.success).length;
+        const failureCount = results.filter((r: EmailResult) => !r.success).length;
         
         console.log(`배치 처리 결과: 성공 ${successCount}명, 실패 ${failureCount}명`);
 
@@ -257,4 +277,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
