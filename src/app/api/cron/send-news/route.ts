@@ -24,13 +24,13 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5분으로 설정
 
 // 상수 정의
-const BATCH_SIZE = 3;           // 한 번에 3명씩
-const EMAIL_DELAY = 1000;       // 이메일 간 1초 대기
-const BATCH_DELAY = 3000;       // 배치 간 3초 대기
+const BATCH_SIZE = 2;           // 한 번에 2명씩 (Hiworks API 제한 준수)
+const EMAIL_DELAY = 2000;       // 이메일 간 2초 대기
+const BATCH_DELAY = 5000;       // 배치 간 5초 대기
 const MAX_EXECUTION_TIME = 45000; // 45초 (Vercel 60초 제한)
-const EMAILS_PER_BATCH = 15;    // 한 배치당 15명
-const MAX_RETRIES = 5;          // 재시도 횟수
-const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000];  // 점진적 대기 시간
+const EMAILS_PER_BATCH = 10;    // 한 배치당 10명으로 축소
+const MAX_RETRIES = 3;          // 재시도 횟수 축소
+const RETRY_DELAYS = [2000, 5000, 10000];  // 점진적 대기 시간 조정
 
 // Hiworks API 설정
 const HIWORKS_CONFIG = {
@@ -343,7 +343,17 @@ async function queueFailedEmail(email: string, subject: string, content: string)
 async function sendEmailWithRetry(to: string, subject: string, content: string, attempt = 0) {
   try {
     if (attempt >= MAX_RETRIES) {
+      console.error(`이메일 발송 최대 재시도 횟수 초과: ${to}`);
+      await queueFailedEmail(to, subject, content);
       return { success: false, error: '최대 재시도 횟수 초과' };
+    }
+
+    // API 제한 체크
+    const canProceed = await checkApiLimits();
+    if (!canProceed) {
+      console.error('API 제한 도달, 이메일 큐잉: ${to}');
+      await queueFailedEmail(to, subject, content);
+      return { success: false, error: 'API 제한 도달' };
     }
 
     const result = await sendEmail({
@@ -354,32 +364,36 @@ async function sendEmailWithRetry(to: string, subject: string, content: string, 
     });
     
     if (result.success) {
+      console.log(`이메일 발송 성공: ${to}`);
       await logEmailSuccess(to);
       return { success: true };
     }
     
-    // 에러 발생 시 재시도
+    console.warn(`이메일 발송 실패 (${attempt + 1}/${MAX_RETRIES}): ${to}`);
     await delay(RETRY_DELAYS[attempt]);
     return sendEmailWithRetry(to, subject, content, attempt + 1);
   } catch (error: unknown) {
-    // 에러 유형별 처리
-    if ((error as ApiError).response?.status === 401) {
+    const apiError = error as ApiError;
+    console.error(`이메일 발송 중 오류 발생: ${to}`, error);
+
+    if (apiError.response?.status === 401) {
+      console.error('Hiworks API 인증 오류');
       await notifyAdmin('Hiworks API 인증 오류');
       return { success: false, error: 'API 인증 오류' };
     }
     
-    if ((error as ApiError).response?.status === 429) {
+    if (apiError.response?.status === 429) {
+      console.error('Hiworks API 호출 한도 도달');
       await notifyAdmin('Hiworks API 호출 한도 도달');
       return { success: false, error: 'API 호출 한도 초과' };
     }
 
-    console.error(`이메일 발송 실패 (${attempt + 1}/${MAX_RETRIES}):`, error);
-    
     if (attempt < MAX_RETRIES - 1) {
       await delay(RETRY_DELAYS[attempt]);
       return sendEmailWithRetry(to, subject, content, attempt + 1);
     }
     
+    await queueFailedEmail(to, subject, content);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : '알 수 없는 오류'
