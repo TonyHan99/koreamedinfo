@@ -18,9 +18,8 @@ export async function notifyAdmin(message: string) {
   try {
     await sendEmail({
       to: process.env.ADMIN_EMAIL,
+      subject: '[의료기기 뉴스레터] 시스템 알림',
       content: `
-        [의료기기 뉴스레터] 시스템 알림
-        
         ${message}
         
         시간: ${new Date().toLocaleString('ko-KR')}
