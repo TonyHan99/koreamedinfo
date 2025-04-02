@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '.prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { sendEmail } from '@/utils/hiworks/email';
 import { notifyAdmin } from '@/utils/monitoring';
 
@@ -12,10 +12,14 @@ const prisma = global.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
 
 // 타입 정의
-interface Subscriber {
+interface NewsSubscriber {
   id: string;
   email: string;
+  name: string;
+  phone: string;
+  company: string;
   createdAt: Date;
+  updatedAt: Date;
   lastSentAt?: Date;
 }
 
@@ -155,7 +159,7 @@ async function sendNewsletterToAllSubscribers() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const subscribers = await prisma.subscriber.findMany({
+    const subscribers = await prisma.newsSubscriber.findMany({
       where: {
         lastSentAt: {
           lt: today
@@ -164,7 +168,7 @@ async function sendNewsletterToAllSubscribers() {
       orderBy: {
         createdAt: 'asc'
       }
-    }) as Subscriber[];
+    }) as NewsSubscriber[];
 
     if (subscribers.length === 0) {
       console.log('오늘 발송할 구독자가 없습니다.');
@@ -206,7 +210,7 @@ async function sendNewsletterToAllSubscribers() {
       try {
         // 배치 내 모든 이메일 동시 처리
         const results = await Promise.all(
-          batch.map(async (subscriber: Subscriber) => {
+          batch.map(async (subscriber: NewsSubscriber) => {
             try {
               const result = await sendEmailWithRetry(
                 subscriber.email,
@@ -215,7 +219,7 @@ async function sendNewsletterToAllSubscribers() {
               );
 
               if (result.success) {
-                await prisma.subscriber.update({
+                await prisma.newsSubscriber.update({
                   where: { id: subscriber.id },
                   data: { lastSentAt: new Date() }
                 });

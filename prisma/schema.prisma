@@ -25,6 +25,7 @@ model NewsSubscriber {
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  lastSentAt DateTime?  // 마지막 뉴스레터 발송 시간
 }
 
 model User {
