@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
-const prisma = new PrismaClient();
+// PrismaClient 싱글톤 처리
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient();
+} else {
+  if (!global.prisma) {
+    global.prisma = new PrismaClient();
+  }
+  prisma = global.prisma;
+}
 
 export async function POST(request: Request) {
   try {
@@ -68,18 +82,20 @@ export async function POST(request: Request) {
         }
       }
     );
-  } catch (error: any) {
-    // 이메일 중복 에러 처리
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: '이미 구독 중인 이메일입니다.' },
-        { 
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
+  } catch (error) {
+    // Prisma 에러 처리
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return NextResponse.json(
+          { error: '이미 구독 중인 이메일입니다.' },
+          { 
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+            }
           }
-        }
-      );
+        );
+      }
     }
 
     console.error('구독 신청 처리 중 오류 발생:', error);
@@ -92,7 +108,5 @@ export async function POST(request: Request) {
         }
       }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 } 

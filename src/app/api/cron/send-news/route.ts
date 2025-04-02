@@ -4,6 +4,22 @@ import axios from 'axios';
 import { sendEmail } from '@/utils/hiworks/email';
 import { notifyAdmin, logMetrics, checkApiLimits } from '@/utils/monitoring';
 
+// PrismaClient 싱글톤 처리
+declare global {
+  var prisma: PrismaClientType | undefined;
+}
+
+let prisma: PrismaClientType;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClientType();
+} else {
+  if (!global.prisma) {
+    global.prisma = new PrismaClientType();
+  }
+  prisma = global.prisma;
+}
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5분으로 설정
 
@@ -51,8 +67,6 @@ const SEARCH_KEYWORDS = {
   '수술 기술': ['최소침습', '로봇수술', '내시경수술', '중재시술'],
   '의료계 동향': ['의사파업&병원', '의료사고', '의료분쟁', '의료정책']
 };
-
-const prisma = new PrismaClientType();
 
 // 네이버 API 설정
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
@@ -136,7 +150,15 @@ interface NewsCategory {
   articles: NewsArticle[];
 }
 
-async function getNewsForKeyword(keyword: string, retryCount = 0): Promise<any[]> {
+interface NaverNewsItem {
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+  keyword: string;
+}
+
+async function getNewsForKeyword(keyword: string, retryCount = 0): Promise<NaverNewsItem[]> {
   try {
     // API 호출 전 대기 시간을 키워드별로 분산
     const baseDelay = 1000; // 기본 1초
@@ -159,8 +181,8 @@ async function getNewsForKeyword(keyword: string, retryCount = 0): Promise<any[]
     );
 
     const recentNews = response.data.items
-      .filter((item: any) => isWithin24Hours(item.pubDate))
-      .map((item: any) => ({
+      .filter((item: NaverNewsItem) => isWithin24Hours(item.pubDate))
+      .map((item: NaverNewsItem) => ({
         ...item,
         keyword,
         pubDate: new Date(item.pubDate)
@@ -366,7 +388,12 @@ async function sendEmailWithRetry(to: string, subject: string, content: string, 
 }
 
 interface EmailLog {
+  id: string;
+  email: string;
   status: string;
+  provider: string;
+  sentAt: Date;
+  createdAt: Date;
 }
 
 async function logEmailSuccess(email: string) {
