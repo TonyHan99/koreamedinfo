@@ -10,7 +10,14 @@
     }
   ],
   "buildCommand": "prisma generate && next build",
+  "installCommand": "npm install",
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "true"
+  },
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
   }
 } 
