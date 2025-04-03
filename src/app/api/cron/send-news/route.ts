@@ -276,6 +276,7 @@ async function sendNewsletterToAllSubscribers() {
 
 export async function GET(request: Request) {
   try {
+    console.log('[send-news] DATABASE_URL:', process.env.DATABASE_URL);
     console.log('[send-news] 작업 시작');
     const result = await sendNewsletterToAllSubscribers();
     console.log('[send-news] 작업 완료:', result);
