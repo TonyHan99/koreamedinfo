@@ -23,19 +23,83 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // 뉴스 수집 함수
 async function getLatestNews() {
   try {
-    const response = await fetch('https://api.example.com/news', {
+    const query = encodeURIComponent("의료기기");
+    const url = `https://openapi.naver.com/v1/search/news.json?query=${query}&display=10&sort=date`;
+    
+    if (!process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET) {
+      const error = '네이버 API 인증 정보가 없습니다.';
+      await prisma.cronLog.create({
+        data: {
+          jobName: 'send-news',
+          status: 'error',
+          error: error,
+          details: JSON.stringify({
+            step: 'getLatestNews',
+            message: '네이버 API 인증 정보 누락'
+          })
+        }
+      });
+      throw new Error(error);
+    }
+
+    const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${process.env.NEWS_API_KEY}`
+        'X-Naver-Client-Id': process.env.NAVER_CLIENT_ID,
+        'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET
       }
     });
     
     if (!response.ok) {
-      throw new Error('뉴스 API 호출 실패');
+      const error = `네이버 뉴스 API 호출 실패: ${response.status} ${response.statusText}`;
+      await prisma.cronLog.create({
+        data: {
+          jobName: 'send-news',
+          status: 'error',
+          error: error,
+          details: JSON.stringify({
+            step: 'getLatestNews',
+            statusCode: response.status,
+            statusText: response.statusText
+          })
+        }
+      });
+      throw new Error(error);
     }
     
-    return await response.json();
+    const data = await response.json();
+    
+    // 성공 로그
+    await prisma.cronLog.create({
+      data: {
+        jobName: 'send-news',
+        status: 'success',
+        details: JSON.stringify({
+          step: 'getLatestNews',
+          newsCount: data.items.length
+        })
+      }
+    });
+
+    return data.items.map((item: any) => ({
+      title: item.title.replace(/<[^>]*>/g, ''),
+      content: item.description.replace(/<[^>]*>/g, ''),
+      url: item.link,
+      pubDate: item.pubDate
+    }));
   } catch (error) {
     console.error('뉴스 수집 중 오류:', error);
+    // 에러 로그
+    await prisma.cronLog.create({
+      data: {
+        jobName: 'send-news',
+        status: 'error',
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+        details: JSON.stringify({
+          step: 'getLatestNews',
+          error: error
+        })
+      }
+    });
     return null;
   }
 }
@@ -252,10 +316,45 @@ async function sendNewsletterToAllSubscribers() {
 
 export async function GET(request: Request) {
   try {
+    // 시작 로그
+    await prisma.cronLog.create({
+      data: {
+        jobName: 'send-news',
+        status: 'started',
+        details: JSON.stringify({
+          startTime: new Date().toISOString()
+        })
+      }
+    });
+
     const result = await sendNewsletterToAllSubscribers();
+
+    // 완료 로그
+    await prisma.cronLog.create({
+      data: {
+        jobName: 'send-news',
+        status: result.success ? 'completed' : 'failed',
+        error: result.error,
+        details: JSON.stringify(result)
+      }
+    });
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('API 처리 중 오류:', error);
+    
+    // 에러 로그
+    await prisma.cronLog.create({
+      data: {
+        jobName: 'send-news',
+        status: 'error',
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+        details: JSON.stringify({
+          error: error
+        })
+      }
+    });
+
     return NextResponse.json(
       { success: false, error: '서버 오류 발생' },
       { status: 500 }

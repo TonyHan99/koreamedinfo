@@ -3,10 +3,14 @@
     {
       "path": "/api/cron/send-news",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/send-news",
+      "schedule": "30 11 * * *"
     }
   ],
   "functions": {
-    "src/app/api/**/*": {
+    "app/api/cron/**/*": {
       "memory": 1024,
       "maxDuration": 60
     }

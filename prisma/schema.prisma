@@ -212,3 +212,15 @@ model FailedEmail {
 
   @@index([email])
 }
+
+model CronLog {
+  id        Int      @id @default(autoincrement())
+  jobName   String
+  status    String   // 'started', 'completed', 'failed', 'error'
+  error     String?
+  details   String?  // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([jobName, status])
+  @@index([createdAt])
+}
