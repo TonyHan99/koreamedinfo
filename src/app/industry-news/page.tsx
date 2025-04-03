@@ -26,14 +26,16 @@ export default function IndustryNewsPage() {
         body: JSON.stringify(data),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('구독 신청 중 오류가 발생했습니다.');
+        throw new Error(result.error || '구독 신청 중 오류가 발생했습니다.');
       }
 
       toast.success('뉴스레터 구독이 완료되었습니다!');
       reset();
     } catch (error) {
-      toast.error('구독 신청 중 오류가 발생했습니다. 다시 시도해주세요.');
+      toast.error(error instanceof Error ? error.message : '구독 신청 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
     }
