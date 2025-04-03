@@ -1,4 +1,5 @@
 import axios from 'axios';
+import FormData from 'form-data';
 
 interface SendEmailOptions {
   to: string;
@@ -31,19 +32,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   }
 
   try {
+    const formData = new FormData();
+    formData.append('to', options.to);
+    formData.append('user_id', userId || 'admin');
+    formData.append('subject', options.subject);
+    formData.append('content', options.content);
+    formData.append('save_sent_mail', options.saveSentMail ? 'Y' : 'N');
+
     const response = await axios.post(
-      apiUrl,
-      {
-        to: options.to,
-        user_id: userId,
-        subject: options.subject,
-        content: options.content,
-        save_sent_mail: options.saveSentMail ? 'Y' : 'N'
-      },
+      `${apiUrl}/office/v2/webmail/sendMail`,
+      formData,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          ...formData.getHeaders()
         }
       }
     );

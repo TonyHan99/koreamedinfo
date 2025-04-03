@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import FormData from 'form-data';
 
 interface ContactFormData {
@@ -20,9 +20,7 @@ export async function POST(req: Request) {
     // FormData 생성
     const formData = new FormData();
     formData.append('to', process.env.ADMIN_EMAIL);
-    formData.append('user_id', process.env.HIWORKS_USER_ID);
-    formData.append('cc', '');
-    formData.append('bcc', '');
+    formData.append('user_id', process.env.HIWORKS_USER_ID || 'admin');
     formData.append('subject', `[문의] ${data.name}님의 문의사항`);
     formData.append('content', `
 이름: ${data.name}
@@ -31,15 +29,29 @@ export async function POST(req: Request) {
     `);
     formData.append('save_sent_mail', 'Y');
 
+    const apiEndpoint = `${process.env.HIWORKS_API_URL}/office/v2/webmail/sendMail`;
+    console.log('API 엔드포인트:', apiEndpoint);
+    console.log('요청 데이터:', {
+      to: process.env.ADMIN_EMAIL,
+      user_id: process.env.HIWORKS_USER_ID,
+      subject: `[문의] ${data.name}님의 문의사항`,
+      save_sent_mail: 'Y'
+    });
+
     // Hiworks API로 이메일 전송
     const hiworksResponse = await axios({
       method: 'post',
-      url: process.env.HIWORKS_API_URL,
+      url: apiEndpoint,
       data: formData,
       headers: {
         'Authorization': `Bearer ${process.env.HIWORKS_API_TOKEN}`,
         ...formData.getHeaders()
       }
+    });
+
+    console.log('API 응답:', {
+      status: hiworksResponse.status,
+      data: hiworksResponse.data
     });
 
     if (hiworksResponse.status === 200) {
@@ -51,7 +63,8 @@ export async function POST(req: Request) {
       throw new Error(`이메일 전송 실패 - 상태 코드: ${hiworksResponse.status}`);
     }
 
-  } catch (error) {
+  } catch (error: any) {
+    console.error('이메일 전송 중 오류:', error.response?.data || error);
     console.error('문의하기 에러:', error);
     
     let errorMessage = '메시지 전송 중 오류가 발생했습니다.';
