@@ -45,8 +45,9 @@ export async function POST(req: Request) {
       {
         headers: {
           ...formData.getHeaders(),
-          'Authorization': `Bearer ${process.env.HIWORKS_API_TOKEN}`,
-          'Content-Type': 'multipart/form-data'
+          'Authorization': process.env.HIWORKS_API_TOKEN,
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json'
         }
       }
     );
