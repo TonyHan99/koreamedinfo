@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     `);
     formData.append('save_sent_mail', 'Y');
 
-    const apiEndpoint = `${process.env.HIWORKS_API_URL}/office/v2/webmail/sendMail`;
+    const apiEndpoint = `${process.env.HIWORKS_API_URL}/v2/webmail/sendMail`;
     console.log('API 엔드포인트:', apiEndpoint);
     console.log('요청 데이터:', {
       to: process.env.ADMIN_EMAIL,
@@ -39,28 +39,30 @@ export async function POST(req: Request) {
     });
 
     // Hiworks API로 이메일 전송
-    const hiworksResponse = await axios({
-      method: 'post',
-      url: apiEndpoint,
-      data: formData,
-      headers: {
-        'Authorization': `Bearer ${process.env.HIWORKS_API_TOKEN}`,
-        ...formData.getHeaders()
+    const response = await axios.post(
+      apiEndpoint,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          'Authorization': `Bearer ${process.env.HIWORKS_API_TOKEN}`,
+          'Content-Type': 'multipart/form-data'
+        }
       }
-    });
+    );
 
     console.log('API 응답:', {
-      status: hiworksResponse.status,
-      data: hiworksResponse.data
+      status: response.status,
+      data: response.data
     });
 
-    if (hiworksResponse.status === 200) {
+    if (response.status === 200) {
       return NextResponse.json({ 
         success: true,
         message: '메시지가 성공적으로 전송되었습니다.'
       });
     } else {
-      throw new Error(`이메일 전송 실패 - 상태 코드: ${hiworksResponse.status}`);
+      throw new Error(`이메일 전송 실패 - 상태 코드: ${response.status}`);
     }
 
   } catch (error: any) {
