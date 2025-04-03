@@ -1,12 +1,10 @@
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model Subscriber {
@@ -216,13 +214,14 @@ model FailedEmail {
 }
 
 model CronLog {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   jobName   String
-  status    String   // 'started', 'completed', 'failed', 'error'
+  status    String
   error     String?
-  details   String?  // JSON string
+  details   String?  @db.Text
   createdAt DateTime @default(now())
 
-  @@index([jobName, status])
+  @@index([jobName])
+  @@index([status])
   @@index([createdAt])
 }
