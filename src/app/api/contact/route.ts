@@ -13,13 +13,19 @@ export async function POST(req: Request) {
     const data = await req.json() as ContactFormData;
     console.log('받은 데이터:', data);
 
-    if (!process.env.HIWORKS_API_URL || !process.env.HIWORKS_API_TOKEN || !process.env.HIWORKS_USER_ID || !process.env.ADMIN_EMAIL) {
-      throw new Error('필수 환경 변수가 설정되지 않았습니다.');
+    // 환경 변수 체크
+    if (!process.env.HIWORKS_API_URL || !process.env.HIWORKS_API_TOKEN || !process.env.HIWORKS_USER_ID) {
+      console.error('필수 환경 변수 누락:', {
+        hasApiUrl: !!process.env.HIWORKS_API_URL,
+        hasToken: !!process.env.HIWORKS_API_TOKEN,
+        hasUserId: !!process.env.HIWORKS_USER_ID
+      });
+      throw new Error('이메일 서버 설정이 올바르지 않습니다.');
     }
 
     // FormData 생성
     const formData = new FormData();
-    formData.append('to', process.env.ADMIN_EMAIL);
+    formData.append('to', 'gkstmdgus99@gmail.com');
     formData.append('user_id', process.env.HIWORKS_USER_ID);
     formData.append('cc', '');
     formData.append('bcc', '');
@@ -28,6 +34,9 @@ export async function POST(req: Request) {
 이름: ${data.name}
 이메일: ${data.email}
 메시지: ${data.message}
+
+---
+koreamedinfo.com 문의하기 폼에서 전송됨
     `);
     formData.append('save_sent_mail', 'Y');
 
@@ -47,20 +56,26 @@ export async function POST(req: Request) {
         success: true,
         message: '메시지가 성공적으로 전송되었습니다.'
       });
-    } else {
-      throw new Error(`이메일 전송 실패 - 상태 코드: ${hiworksResponse.status}`);
     }
+
+    console.error('Hiworks API 응답:', hiworksResponse.status, hiworksResponse.data);
+    throw new Error('이메일 전송에 실패했습니다.');
 
   } catch (error) {
     console.error('문의하기 에러:', error);
     
-    let errorMessage = '메시지 전송 중 오류가 발생했습니다.';
-    if (error instanceof Error) {
-      errorMessage = error.message;
+    if (error instanceof AxiosError) {
+      console.error('API 에러 상세:', {
+        status: error.response?.status,
+        data: error.response?.data
+      });
     }
     
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : '메시지 전송 중 오류가 발생했습니다.'
+      },
       { status: 500 }
     );
   }
