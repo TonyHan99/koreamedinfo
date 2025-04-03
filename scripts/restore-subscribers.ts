@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -80,7 +80,7 @@ async function main() {
       })
       console.log(`✅ 추가됨: ${subscriber.name} (${subscriber.email})`)
     } catch (error) {
-      if (error.code === 'P2002') {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         console.log(`⚠️ 중복된 이메일: ${subscriber.name} (${subscriber.email})`)
       } else {
         console.error(`❌ 오류 발생: ${subscriber.name} (${subscriber.email})`, error)
