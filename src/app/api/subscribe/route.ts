@@ -7,8 +7,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, phone, company, email } = body;
 
+    // 전화번호에서 하이픈 제거
+    const cleanPhone = phone.replace(/-/g, '');
+
     // 필수 필드 검증
-    if (!name || !phone || !company || !email) {
+    if (!name || !cleanPhone || !company || !email) {
       return NextResponse.json(
         { error: '모든 필드를 입력해주세요.' },
         { 
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
 
     // 전화번호 형식 검증
     const phoneRegex = /^[0-9]{8,13}$/;
-    if (!phoneRegex.test(phone)) {
+    if (!phoneRegex.test(cleanPhone)) {
       return NextResponse.json(
         { error: '올바른 전화번호 형식이 아닙니다. (숫자만 입력)' },
         { 
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
     const subscriber = await prisma.newsSubscriber.create({
       data: {
         name,
-        phone,
+        phone: cleanPhone,
         company,
         email,
       },
