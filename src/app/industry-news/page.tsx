@@ -68,12 +68,12 @@ export default function IndustryNewsPage() {
               {...register('phone', { 
                 required: '전화번호를 입력해주세요.',
                 pattern: {
-                  value: /^[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}$/,
-                  message: '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678)'
+                  value: /^[0-9]{8,13}$/,
+                  message: '올바른 전화번호 형식이 아닙니다. (숫자만 입력)'
                 }
               })}
               className="w-full mt-1 px-4 py-3 bg-[#2a2f3e] text-white border-0 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-500"
-              placeholder="010-1234-5678"
+              placeholder="01012345678"
             />
             {errors.phone && (
               <p className="mt-1 text-sm text-red-500">{errors.phone.message}</p>
