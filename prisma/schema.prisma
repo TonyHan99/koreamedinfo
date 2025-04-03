@@ -3,6 +3,7 @@ generator client {
   previewFeatures = ["driverAdapters"]
 }
 
+// Use Supabase as the database provider
 datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
