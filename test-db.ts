@@ -1,21 +1,24 @@
-import prisma from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
 
-async function test() {
+const prisma = new PrismaClient();
+
+async function testConnection() {
   try {
-    const testSubscriber = await prisma.newsSubscriber.create({
-      data: {
-        name: "테스트",
-        phone: "010-1234-5678",
-        company: "테스트회사",
-        email: "test@example.com"
-      }
-    })
-    console.log('테스트 데이터 생성 성공:', testSubscriber)
+    console.log('Connecting to database...');
+    const subscriberCount = await prisma.newsSubscriber.count();
+    console.log('NewsSubscriber count:', subscriberCount);
+    
+    const subscribers = await prisma.newsSubscriber.findMany({
+      take: 5
+    });
+    console.log('First 5 subscribers:', subscribers);
+    
+    console.log('Database connection successful!');
   } catch (error) {
-    console.error('에러:', error)
+    console.error('Database connection error:', error);
   } finally {
-    await prisma.$disconnect()
+    await prisma.$disconnect();
   }
 }
 
-test() 
+testConnection(); 

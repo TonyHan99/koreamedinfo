@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/send-news",
+      "path": "/api/cron/send-news?key=newsletter-cron-secret-key-123",
       "schedule": "45 12 * * *"
     }
   ],

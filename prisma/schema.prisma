@@ -1,12 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
 
-// Use Supabase as the database provider
 datasource db {
-  provider = "postgresql"
-  url = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -21,14 +20,14 @@ model Subscriber {
 }
 
 model NewsSubscriber {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String
-  company   String?
-  email     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lastSentAt DateTime?  // 마지막 뉴스레터 발송 시간
+  id         String    @id @default(cuid())
+  name       String
+  phone      String
+  company    String?
+  email      String    @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSentAt DateTime?
 }
 
 model User {
@@ -144,17 +143,11 @@ model Report {
   User_Report_reporterIdToUser     User          @relation("Report_reporterIdToUser", fields: [reporterId], references: [id])
 }
 
-enum UserRole {
-  USER
-  ADMIN
-  MODERATOR
-}
-
 model EmailQueue {
   id           String   @id @default(cuid())
   email        String
-  content      String   @db.Text
-  status       String   // 'pending', 'failed', 'completed'
+  content      String
+  status       String
   error        String?
   retryCount   Int      @default(0)
   createdAt    DateTime @default(now())
@@ -164,8 +157,8 @@ model EmailQueue {
 model EmailLog {
   id        String   @id @default(cuid())
   email     String
-  status    String   // 'success' or 'failed'
-  provider  String   // 'gmail' or 'other'
+  status    String
+  provider  String
   sentAt    DateTime @default(now())
   createdAt DateTime @default(now())
 
@@ -176,30 +169,30 @@ model EmailLog {
 
 model NewsletterMetrics {
   id               String   @id @default(cuid())
-  batchNumber      Int?     // Optional batch number for batch processing
+  batchNumber      Int?
   totalSubscribers Int
   processedEmails  Int
   successCount     Int
   failureCount     Int
-  executionTime    Int      // milliseconds
+  executionTime    Int
   timestamp        DateTime @default(now())
 
   @@index([timestamp])
 }
 
 model EmailBatch {
-  id            String      @id @default(cuid())
-  batchNumber   Int
-  totalBatches  Int
-  status        String      // 'pending', 'processing', 'completed', 'failed'
-  scheduledFor  DateTime
-  startedAt     DateTime?
-  completedAt   DateTime?
-  successCount  Int         @default(0)
-  failureCount  Int         @default(0)
-  error         String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id           String    @id @default(cuid())
+  batchNumber  Int
+  totalBatches Int
+  status       String
+  scheduledFor DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  successCount Int       @default(0)
+  failureCount Int       @default(0)
+  error        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, scheduledFor])
   @@index([batchNumber])
@@ -209,22 +202,15 @@ model FailedEmail {
   id        String   @id @default(cuid())
   email     String
   subject   String
-  content   String   @db.Text
+  content   String
   error     String?
   createdAt DateTime @default(now())
 
   @@index([email])
 }
 
-model CronLog {
-  id        String   @id @default(cuid())
-  jobName   String
-  status    String
-  error     String?
-  details   String?  @db.Text
-  createdAt DateTime @default(now())
-
-  @@index([jobName])
-  @@index([status])
-  @@index([createdAt])
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
 }

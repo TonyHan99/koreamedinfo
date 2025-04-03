@@ -276,16 +276,24 @@ async function sendNewsletterToAllSubscribers() {
 
 export async function GET(request: Request) {
   try {
-    console.log('[send-news] DATABASE_URL:', process.env.DATABASE_URL);
-    console.log('[send-news] 작업 시작');
+    // API key 검증
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
+    
+    if (!key || key !== process.env.NEWSLETTER_CRON_KEY) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Invalid API key' 
+      }, { status: 401 });
+    }
+
     const result = await sendNewsletterToAllSubscribers();
-    console.log('[send-news] 작업 완료:', result);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[send-news] API 처리 중 오류:', error);
-    return NextResponse.json(
-      { success: false, error: '서버 오류 발생' },
-      { status: 500 }
-    );
+    console.error('Newsletter sending failed:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 }

@@ -35,10 +35,10 @@ export async function POST(request: Request) {
     }
 
     // 전화번호 형식 검증
-    const phoneRegex = /^[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}$/;
+    const phoneRegex = /^[0-9-]{8,13}$/;
     if (!phoneRegex.test(phone)) {
       return NextResponse.json(
-        { error: '올바른 전화번호 형식이 아닙니다.' },
+        { error: '올바른 전화번호 형식이 아닙니다. (숫자와 하이픈만 사용 가능)' },
         { 
           status: 400,
           headers: {
