@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 이메일: ${data.email}
 메시지: ${data.message}
     `);
-    formData.append('save_sent_mail', 'Y');
+    formData.append('save_sent_mail', 'N');
 
     const apiEndpoint = `${process.env.HIWORKS_API_URL}/office/v2/webmail/sendMail`;
     console.log('API 엔드포인트:', apiEndpoint);
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       to: process.env.ADMIN_EMAIL,
       user_id: process.env.HIWORKS_USER_ID,
       subject: `[문의] ${data.name}님의 문의사항`,
-      save_sent_mail: 'Y'
+      save_sent_mail: 'N'
     });
 
     // Hiworks API로 이메일 전송
