@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     `);
     formData.append('save_sent_mail', 'Y');
 
-    const apiEndpoint = `${process.env.HIWORKS_API_URL}/v2/webmail/sendMail`;
+    const apiEndpoint = `${process.env.HIWORKS_API_URL}/office/v2/webmail/sendMail`;
     console.log('API 엔드포인트:', apiEndpoint);
     console.log('요청 데이터:', {
       to: process.env.ADMIN_EMAIL,
