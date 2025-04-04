@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/send-news",
-      "schedule": "45 12 * * *"
-    }
-  ],
   "functions": {
     "app/api/cron/**/*": {
       "memory": 1024,
