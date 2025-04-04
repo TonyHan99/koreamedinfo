@@ -1,17 +1,12 @@
 name: Daily Newsletter
 on:
   schedule:
-    - cron: '0 0 * * *'  # 매일 UTC 00:00 (한국 시간 09:00)
-  workflow_dispatch:  # 수동 실행 가능
+    - cron: '0 0 * * 1-5'  # 평일(월-금) 오전 9시 (UTC 0시)
 
 jobs:
   send-newsletter:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Newsletter
+      - name: Trigger Newsletter API
         run: |
-          curl -X GET "${NEWSLETTER_API_URL}" \
-            -H "Authorization: Bearer ${API_SECRET_KEY}"
-        env:
-          NEWSLETTER_API_URL: ${{ secrets.NEWSLETTER_API_URL }}
-          API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }} 
+          curl -X GET "https://koreamedinfo.vercel.app/api/cron/send-news?key=${{ secrets.NEWSLETTER_CRON_KEY }}"
