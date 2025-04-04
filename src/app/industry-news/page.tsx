@@ -63,17 +63,13 @@ export default function IndustryNewsPage() {
           <div>
             <label htmlFor="phone" className="text-gray-400 text-sm">전화번호</label>
             <input
-              type="tel"
+              type="text"
               id="phone"
               {...register('phone', { 
-                required: '전화번호를 입력해주세요.',
-                pattern: {
-                  value: /^[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}$/,
-                  message: '올바른 전화번호 형식이 아닙니다. (예: 010-1234-5678)'
-                }
+                required: '전화번호를 입력해주세요.'
               })}
               className="w-full mt-1 px-4 py-3 bg-[#2a2f3e] text-white border-0 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-500"
-              placeholder="010-1234-5678"
+              placeholder="전화번호를 입력해주세요"
             />
             {errors.phone && (
               <p className="mt-1 text-sm text-red-500">{errors.phone.message}</p>
