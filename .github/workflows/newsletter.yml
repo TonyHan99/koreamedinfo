@@ -26,4 +26,4 @@ jobs:
           HIWORKS_API_URL: ${{ secrets.HIWORKS_API_URL }}
           HIWORKS_API_TOKEN: ${{ secrets.HIWORKS_API_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: node scripts/send-newsletter.js
+        run: node scripts/send-newsletter.mjs
