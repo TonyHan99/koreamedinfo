@@ -28,11 +28,11 @@ export async function sendEmail(options) {
     formData.append('save_sent_mail', options.saveSentMail ? 'Y' : 'N');
 
     const response = await axios.post(
-      `${apiUrl}/office/v2/webmail/sendMail`,
+      apiUrl,
       formData,
       {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           ...formData.getHeaders()
         }
       }
