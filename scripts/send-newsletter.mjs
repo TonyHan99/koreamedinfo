@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import { sendEmail } from '../src/utils/hiworks/email.js';
+import { sendEmail } from './utils/email.mjs';
 
 const prisma = new PrismaClient();
 
