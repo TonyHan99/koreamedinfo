@@ -1,7 +1,7 @@
 name: Daily Newsletter
 on:
   schedule:
-    - cron: '0 2 * * 1-5'  # UTC 02:00 = 한국 시간 11:00 (월-금)
+    - cron: '0 0 * * 0-4'  # UTC 00:00 일-목 = 한국 시간 09:00 월-금
   workflow_dispatch:
 
 jobs:
