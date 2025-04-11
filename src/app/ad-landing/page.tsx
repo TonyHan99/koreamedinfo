@@ -51,25 +51,29 @@ export default function AdLanding() {
 
       <style jsx>{`
         @media (max-width: 768px) {
-          div {
+          .container {
             flex-direction: column;
             align-items: stretch;
+          }
+          .image-section, .form-section {
+            width: 100%;
+            height: auto;
           }
         }
       `}</style>
 
-      <div style={{ 
-        flex: 0.6, 
+      <div className="image-section" style={{ 
+        width: '60%', 
         backgroundImage: 'url(/images/ad-product/interblock.jpg)', 
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        height: '50vh'
+        height: 'auto'
       }}>
         {/* 제품 이미지 */}
       </div>
-      <div style={{ 
-        flex: 0.4, 
+      <div className="form-section" style={{ 
+        width: '40%', 
         padding: '20px', 
         color: '#1d1d1f',
         display: 'flex',
