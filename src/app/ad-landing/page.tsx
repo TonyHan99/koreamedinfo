@@ -42,76 +42,56 @@ export default function AdLanding() {
   return (
     <div className="container" style={{ 
       display: 'flex', 
-      flexDirection: 'row',
+      flexDirection: 'column',
       minHeight: '100vh', 
       fontFamily: 'Helvetica, Arial, sans-serif', 
-      backgroundColor: '#fff',
+      backgroundColor: '#fff', // 배경색 흰색
       alignItems: 'center',
-      padding: '20px',
-      boxSizing: 'border-box'
+      justifyContent: 'center',
     }}>
 
       <style jsx>{`
         @media (max-width: 768px) {
           .container {
-            flex-direction: column;
             padding: 10px;
-            background-color: #fff; /* PC에서 흰색 배경 */
           }
-          .image-section {
+          .image-section, .form-section {
             width: 100%;
-            height: auto; /* 이미지 높이 자동 조정 */
-            margin-bottom: 20px;
+            padding: 10px;
           }
-          .form-section {
-            width: 100%;
-            padding: 15px;
-          }
-          h1 {
-            font-size: 24px;
-          }
-          .product-info {
-            padding: 12px;
-          }
-          form {
-            padding: 12px;
-          }
-          input, textarea {
-            font-size: 16px;
+          .image-section img {
+            width: 100%; // 모바일에서 이미지가 화면에 맞게 조정
+            height: auto;
           }
         }
-        @media (min-width: 769px) and (max-width: 1024px) {
+        
+        @media (min-width: 769px) {
           .container {
-            padding: 15px;
-            background-color: #fff; /* PC에서 흰색 배경 */
+            max-width: 1200px;
+            margin: 0 auto;
           }
-          .image-section {
-            height: 45vh;
+          .image-section img {
+            width: 100%; // 데스크탑에서도 이미지가 컨테이너에 맞게 조정
+            height: auto;
           }
         }
       `}</style>
 
       <div className="image-section" style={{ 
-        flex: 1, 
-        backgroundImage: 'url(/images/ad-product/interblock.jpg)', 
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        height: '50vh',
-        borderRadius: '8px',
-        marginRight: '20px'
+        width: '100%', 
+        maxWidth: '600px',
+        marginBottom: '20px',
       }}>
-        {/* 제품 이미지 */}
+        <img src="/images/ad-product/interblock.jpg" alt="제품 이미지" />
       </div>
       <div className="form-section" style={{ 
-        flex: 1, 
+        width: '100%', 
+        maxWidth: '600px',
         padding: '20px', 
         color: '#1d1d1f',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        maxWidth: '600px',
-        margin: '0 auto'
+        justifyContent: 'center'
       }}>
         <h1 style={{ fontSize: '28px', marginBottom: '15px' }}>비급여 유착방지제 인터블락 유통 문의</h1>
         <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
