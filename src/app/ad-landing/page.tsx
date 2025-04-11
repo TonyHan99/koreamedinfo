@@ -40,45 +40,76 @@ export default function AdLanding() {
   };
 
   return (
-    <div style={{ 
+    <div className="container" style={{ 
       display: 'flex', 
       flexDirection: 'row',
       minHeight: '100vh', 
       fontFamily: 'Helvetica, Arial, sans-serif', 
       backgroundColor: '#fff',
-      alignItems: 'center'
+      alignItems: 'center',
+      padding: '20px',
+      boxSizing: 'border-box'
     }}>
 
       <style jsx>{`
         @media (max-width: 768px) {
           .container {
             flex-direction: column;
-            align-items: stretch;
+            padding: 10px;
           }
-          .image-section, .form-section {
+          .image-section {
             width: 100%;
-            height: auto;
+            height: 40vh;
+            margin-bottom: 20px;
+          }
+          .form-section {
+            width: 100%;
+            padding: 15px;
+          }
+          h1 {
+            font-size: 24px;
+          }
+          .product-info {
+            padding: 12px;
+          }
+          form {
+            padding: 12px;
+          }
+          input, textarea {
+            font-size: 16px;
+          }
+        }
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .container {
+            padding: 15px;
+          }
+          .image-section {
+            height: 45vh;
           }
         }
       `}</style>
 
       <div className="image-section" style={{ 
-        width: '60%', 
+        flex: 1, 
         backgroundImage: 'url(/images/ad-product/interblock.jpg)', 
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        height: 'auto'
+        height: '50vh',
+        borderRadius: '8px',
+        marginRight: '20px'
       }}>
         {/* 제품 이미지 */}
       </div>
       <div className="form-section" style={{ 
-        width: '40%', 
+        flex: 1, 
         padding: '20px', 
         color: '#1d1d1f',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        maxWidth: '600px',
+        margin: '0 auto'
       }}>
         <h1 style={{ fontSize: '28px', marginBottom: '15px' }}>비급여 유착방지제 인터블락 유통 문의</h1>
         <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
