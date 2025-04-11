@@ -239,7 +239,7 @@ async function generateNewsletterHTML(newsCategories) {
       <!-- 광고 배너 -->
       <div style="text-align: center; margin: 20px 0;">
         <a href="https://koreamedinfo.com/ad-landing" target="_blank">
-          <img src="/images/ads/banner.jpg" alt="광고 배너" style="max-width: 100%; height: auto; border: none;" />
+          <img src="https://www.koreamedinfo.com/images/ads/banner.jpg" alt="광고 배너" style="max-width: 100%; height: auto; border: none;" />
         </a>
       </div>
 
