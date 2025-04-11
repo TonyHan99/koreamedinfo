@@ -56,10 +56,11 @@ export default function AdLanding() {
           .container {
             flex-direction: column;
             padding: 10px;
+            background-color: #fff; /* PC에서 흰색 배경 */
           }
           .image-section {
             width: 100%;
-            height: 40vh;
+            height: auto; /* 이미지 높이 자동 조정 */
             margin-bottom: 20px;
           }
           .form-section {
@@ -82,6 +83,7 @@ export default function AdLanding() {
         @media (min-width: 769px) and (max-width: 1024px) {
           .container {
             padding: 15px;
+            background-color: #fff; /* PC에서 흰색 배경 */
           }
           .image-section {
             height: 45vh;
