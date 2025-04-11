@@ -42,11 +42,21 @@ export default function AdLanding() {
   return (
     <div style={{ 
       display: 'flex', 
+      flexDirection: 'row',
       height: '100vh', 
       fontFamily: 'Helvetica, Arial, sans-serif', 
       backgroundColor: '#fff',
       alignItems: 'center'
     }}>
+
+      <style jsx>{`
+        @media (max-width: 768px) {
+          div {
+            flex-direction: column;
+          }
+        }
+      `}</style>
+
       <div style={{ 
         flex: 0.6, 
         backgroundImage: 'url(/images/ad-product/interblock.jpg)', 
