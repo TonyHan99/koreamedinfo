@@ -213,7 +213,7 @@ export default function Home() {
                 <div>
                   <h3 className="text-2xl font-semibold mb-4 text-white">연락처</h3>
                   <p className="text-gray-300 text-lg leading-relaxed">
-                    +82 1041560120
+                    +82 추후 업데이트
                   </p>
                 </div>
               </div>

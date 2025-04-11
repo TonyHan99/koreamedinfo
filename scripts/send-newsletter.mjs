@@ -235,6 +235,14 @@ async function generateNewsletterHTML(newsCategories) {
     <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
       <h1 style="color: #333; text-align: center;">의료기기 뉴스레터</h1>
       <p style="color: #666; text-align: center;">최근 24시간 동안의 주요 의료기기 뉴스입니다.</p>
+      
+      <!-- 광고 배너 -->
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="https://koreamedinfo.com/ad-landing" target="_blank">
+          <img src="/images/ads/banner.jpg" alt="광고 배너" style="max-width: 100%; height: auto; border: none;" />
+        </a>
+      </div>
+
       <div style="text-align: center; margin: 20px 0;">
         <a href="https://koreamedinfo.com/industry-news" 
            style="display: inline-block; 
