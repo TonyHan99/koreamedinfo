@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { error: '구독 신청 처리 중 오류가 발생했습니다.' },
+      { error: '구독 신청 처리 중 오류가 발생했습니다(이미 구독 중인 이메일 일 수 있습니다).' },
       { status: 500 }
     );
   }
