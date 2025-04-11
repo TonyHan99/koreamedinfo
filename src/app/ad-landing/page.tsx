@@ -43,7 +43,7 @@ export default function AdLanding() {
     <div style={{ 
       display: 'flex', 
       flexDirection: 'row',
-      height: '100vh', 
+      minHeight: '100vh', 
       fontFamily: 'Helvetica, Arial, sans-serif', 
       backgroundColor: '#fff',
       alignItems: 'center'
@@ -53,6 +53,7 @@ export default function AdLanding() {
         @media (max-width: 768px) {
           div {
             flex-direction: column;
+            align-items: stretch;
           }
         }
       `}</style>
@@ -60,10 +61,10 @@ export default function AdLanding() {
       <div style={{ 
         flex: 0.6, 
         backgroundImage: 'url(/images/ad-product/interblock.jpg)', 
-        backgroundSize: 'contain',
+        backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        height: '100%'
+        height: '50vh'
       }}>
         {/* 제품 이미지 */}
       </div>
