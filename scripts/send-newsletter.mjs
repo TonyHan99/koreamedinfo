@@ -21,6 +21,36 @@ const SEARCH_KEYWORDS = {
   '미용 의료기기기': ['필러 +수출', '스킨부스터 +수출', '피부과 +런칭', '성형외과 +런칭', '콜라겐주사 +에스테틱']
 };
 
+// 필터링할 키워드들 (이 키워드가 포함된 기사는 제외)
+const EXCLUDE_KEYWORDS = [
+  // 연예인 관련
+  '연예인', '배우', '가수', '아이돌', '스타', '유명인', '셀럽', '인스타그램', 'SNS',
+  // 보험사 관련
+  '보험', '보험사', '생명보험', '손해보험', '보험상품', '보험료', '보험금',
+  // 일반 광고/마케팅
+  '광고', '홍보', '마케팅', '브랜드', '이벤트', '프로모션', '할인', '쿠폰',
+  // 스포츠/게임
+  '축구', '야구', '농구', '골프', '테니스', '게임', 'e스포츠', '리그', '경기',
+  // 정치/사회 일반
+  '정치', '국회', '의원', '대통령', '정부', '법안', '투표', '선거',
+  // 부동산/금융
+  '부동산', '아파트', '집값', '주식', '투자', '펀드', '은행', '대출',
+  // 기타 불필요한 키워드
+  '사기', '사칭', '허위', '과장', '기만', '속임수'
+];
+
+// 의료기기 관련 필수 키워드 (이 중 하나라도 포함되어야 함)
+const MEDICAL_DEVICE_KEYWORDS = [
+  '의료기기', '의료장비', '의료용품', '진단기기', '치료기기', '수술기기',
+  '스텐트', '카테터', '심박조율기', '인슐린펌프', '산소포화도계', '혈압계',
+  'MRI', 'CT', '초음파', '엑스레이', '내시경', '복강경', '로봇수술',
+  '인공심장', '인공관절', '보형물', '임플란트', '스텐트', '바이패스',
+  '심장판막', '심장이식', '장기이식', '조직공학', '재생의학',
+  '의료AI', '의료로봇', '원격의료', '텔레메디슨', '디지털헬스',
+  '메드트로닉', '애보트', '보스톤사이언티픽', '인튜이티브', '존슨앤존슨',
+  '필립스', '지멘스', 'GE헬스케어', '로슈', '노바티스'
+];
+
 // 24시간 이내 뉴스인지 확인
 function isWithin24Hours(pubDate) {
   const newsDate = new Date(pubDate);
@@ -88,6 +118,7 @@ async function getNewsForKeyword(keyword, retryCount = 0) {
 
     const recentNews = response.data.items
       .filter(item => isWithin24Hours(item.pubDate))
+      .filter(item => filterArticle(item))
       .map(item => ({
         ...item,
         keyword,
@@ -119,6 +150,47 @@ async function getNewsForKeyword(keyword, retryCount = 0) {
     
     return [];
   }
+}
+
+// 기사 필터링 함수
+function filterArticle(article) {
+  const title = cleanText(article.title).toLowerCase();
+  const description = cleanText(article.description).toLowerCase();
+  const content = title + ' ' + description;
+
+  // 제외 키워드 체크
+  for (const excludeKeyword of EXCLUDE_KEYWORDS) {
+    if (content.includes(excludeKeyword.toLowerCase())) {
+      console.log(`제외됨 (${excludeKeyword}): ${article.title}`);
+      return false;
+    }
+  }
+
+  // 의료기기 관련 필수 키워드 체크 (최소 1개 이상 포함되어야 함)
+  const hasMedicalKeyword = MEDICAL_DEVICE_KEYWORDS.some(keyword => 
+    content.includes(keyword.toLowerCase())
+  );
+
+  if (!hasMedicalKeyword) {
+    console.log(`제외됨 (의료기기 키워드 없음): ${article.title}`);
+    return false;
+  }
+
+  // 제목이 너무 짧거나 긴 경우 제외
+  if (title.length < 10 || title.length > 100) {
+    console.log(`제외됨 (제목 길이): ${article.title}`);
+    return false;
+  }
+
+  // 중복된 단어가 너무 많은 경우 제외 (스팸성 기사)
+  const words = title.split(' ').filter(word => word.length > 1);
+  const uniqueWords = new Set(words);
+  if (words.length > 0 && uniqueWords.size / words.length < 0.6) {
+    console.log(`제외됨 (중복 단어 많음): ${article.title}`);
+    return false;
+  }
+
+  return true;
 }
 
 // 뉴스 수집 함수 (변경 없음)
