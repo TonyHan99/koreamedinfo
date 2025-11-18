@@ -6,7 +6,8 @@ export default function ContactForm() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    message: ''
+    message: '',
+    website: '' // Honeypot 필드 (봇만 채움)
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -28,7 +29,7 @@ export default function ContactForm() {
       if (!response.ok) throw new Error('Failed to send message');
       
       setSubmitStatus('success');
-      setFormData({ name: '', email: '', message: '' });
+      setFormData({ name: '', email: '', message: '', website: '' });
     } catch (error) {
       console.error('Error sending message:', error);
       setSubmitStatus('error');
@@ -80,6 +81,19 @@ export default function ContactForm() {
             rows={4}
             className="w-full px-4 py-3 bg-white/5 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
             placeholder="문의하실 내용을 입력해주세요."
+          />
+        </div>
+        {/* Honeypot 필드 - 사람은 보지 못하지만 봇이 채우면 스팸으로 판단 */}
+        <div style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}>
+          <label htmlFor="website">웹사이트 (비워두세요)</label>
+          <input
+            type="text"
+            id="website"
+            name="website"
+            value={formData.website}
+            onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
+            tabIndex={-1}
+            autoComplete="off"
           />
         </div>
         <div>

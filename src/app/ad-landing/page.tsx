@@ -8,7 +8,8 @@ export default function AdLanding() {
     name: '',
     phone: '',
     email: '',
-    adDetails: ''
+    adDetails: '',
+    website: '' // Honeypot 필드 (봇만 채움)
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -30,7 +31,7 @@ export default function AdLanding() {
       if (!response.ok) throw new Error('Failed to submit application');
       
       setSubmitStatus('success');
-      setFormData({ company: '', name: '', phone: '', email: '', adDetails: '' });
+      setFormData({ company: '', name: '', phone: '', email: '', adDetails: '', website: '' });
     } catch (error) {
       console.error('Error submitting application:', error);
       setSubmitStatus('error');
@@ -180,6 +181,19 @@ export default function AdLanding() {
               rows={4}
               style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
               placeholder="유통을 희망하는 병원명(지역)을 포함하여 세부 문의사항을 입력해주세요."
+            />
+          </div>
+          {/* Honeypot 필드 - 사람은 보지 못하지만 봇이 채우면 스팸으로 판단 */}
+          <div style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}>
+            <label htmlFor="website">웹사이트 (비워두세요)</label>
+            <input
+              type="text"
+              id="website"
+              name="website"
+              value={formData.website}
+              onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
+              tabIndex={-1}
+              autoComplete="off"
             />
           </div>
           <button
