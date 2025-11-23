@@ -9,6 +9,7 @@ interface SubscriptionFormData {
   phone: string;
   company: string;
   email: string;
+  website?: string; // Honeypot 필드 (봇만 채움)
 }
 
 export default function IndustryNewsPage() {
@@ -108,6 +109,18 @@ export default function IndustryNewsPage() {
             {errors.email && (
               <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>
             )}
+          </div>
+
+          {/* Honeypot 필드 - 사람은 보지 못하지만 봇이 채우면 스팸으로 판단 */}
+          <div style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}>
+            <label htmlFor="website">웹사이트 (비워두세요)</label>
+            <input
+              type="text"
+              id="website"
+              {...register('website')}
+              tabIndex={-1}
+              autoComplete="off"
+            />
           </div>
 
           <button
