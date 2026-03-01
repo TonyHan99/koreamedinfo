@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 const PROMO_LINK = 'https://www.hiramedical.com';
 const BANNER_IMAGE_URL = 'https://www.koreamedinfo.com/images/ads/banner.jpg';
 const SUBJECT = `[Hira Medical] 심평원 데이터 분석, 10초 만에 끝내세요`;
-const TEST_RECIPIENT = 'gkstmdgus99@gmail.com';
 const ADDITIONAL_IMAGE_URLS = [
   'https://www.koreamedinfo.com/images/ads/hira-promo-01.png',
   'https://www.koreamedinfo.com/images/ads/hira-promo-02.png',
@@ -149,8 +148,16 @@ async function sendEmailsInBatches(subscribers, htmlContent, batchSize = 50) {
 
 async function main() {
   try {
-    const subscribers = [{ email: TEST_RECIPIENT }];
-    console.log('테스트 발송 모드 수신자:', TEST_RECIPIENT);
+    const subscribers = await prisma.newsSubscriber.findMany({
+      select: { email: true },
+    });
+
+    console.log('구독자 수:', subscribers.length);
+
+    if (subscribers.length === 0) {
+      console.log('구독자가 없습니다.');
+      return;
+    }
 
     const htmlContent = generatePromoHTML();
     const { successCount, failCount, failedEmails } = await sendEmailsInBatches(subscribers, htmlContent);
