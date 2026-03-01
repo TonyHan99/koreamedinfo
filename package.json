@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "mail:promo:hira": "node scripts/send-hiramedical-promo.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
