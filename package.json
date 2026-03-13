@@ -9,7 +9,8 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "mail:promo:hira": "node scripts/send-hiramedical-promo.mjs"
+    "mail:promo:hira": "node scripts/send-hiramedical-promo.mjs",
+    "mail:promo:hira2": "node scripts/send-hiramedical-promo2.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
